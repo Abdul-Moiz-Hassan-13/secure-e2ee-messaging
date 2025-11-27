@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.js';   // <-- ADD THIS
 import usersRoutes from './routes/users.js';
 import keyExchangeRoutes from './routes/keyexchange.js';
 import messagesRoutes from './routes/messages.js';
+import filesRoutes from "./routes/files.js";
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use('/api/auth', authRoutes);            // <-- ADD THIS
 app.use('/api/users', usersRoutes);
 app.use('/api/keyexchange', keyExchangeRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use("/api/files", filesRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: "Server running" });
