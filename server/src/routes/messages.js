@@ -50,7 +50,7 @@ router.post("/send", async (req, res) => {
 
     // 3. Timestamp too old or suspicious
     const diff = Date.now() - Number(clientTimestamp);
-    if (Math.abs(diff) > 30000) {
+    if (Math.abs(diff) > 300000) { 
       console.log("⚠ Suspicious timestamp detected");
       return res.status(400).json({ error: "Timestamp replay detected" });
     }
