@@ -14,12 +14,11 @@ function getNextSequence(senderId) {
   return last;
 }
 
-export async function sendEncryptedMessage(sessionKey, senderId, receiverId, plaintext) {
+export async function sendEncryptedMessage(sessionKey, senderId, receiverId, plaintext, clientTimestamp) {
   const { ciphertext, iv } = await encryptMessage(sessionKey, plaintext);
 
   const nonce = generateNonce();
   const sequenceNumber = getNextSequence(senderId);   // NEW
-  const clientTimestamp = Date.now();                 // NEW
 
   const response = await axiosClient.post("/messages/send", {
     senderId,
@@ -28,7 +27,7 @@ export async function sendEncryptedMessage(sessionKey, senderId, receiverId, pla
     iv,
     nonce,
     sequenceNumber,
-    clientTimestamp         // NEW
+    clientTimestamp        // NEW
   });
 
   return response.data;

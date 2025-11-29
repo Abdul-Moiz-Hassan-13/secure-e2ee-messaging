@@ -26,6 +26,60 @@ function base64ToBuf(b64) {
   return bytes.buffer;
 }
 
+export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPublicJwk, saltString = "") {
+  // 1) Import peer's ephemeral public key
+  const peerPublicKey = await window.crypto.subtle.importKey(
+    "jwk",
+    peerEphemeralPublicJwk,
+    {
+      name: "ECDH",
+      namedCurve: "P-256"
+    },
+    true,
+    []
+  );
+
+  // 2) Derive raw shared secret (32 bytes)
+  const sharedSecret = await window.crypto.subtle.deriveBits(
+    {
+      name: "ECDH",
+      public: peerPublicKey
+    },
+    myEphemeralPrivateKey,
+    256
+  );
+
+  // 3) HKDF → AES-256-GCM session key
+  const hkdfKey = await window.crypto.subtle.importKey(
+    "raw",
+    sharedSecret,
+    "HKDF",
+    false,
+    ["deriveKey"]
+  );
+
+  const salt = new TextEncoder().encode(saltString);
+  const info = new TextEncoder().encode("chat-session");
+
+  const sessionKey = await window.crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt,
+      info
+    },
+    hkdfKey,
+    {
+      name: "AES-GCM",
+      length: 256
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  return sessionKey;
+}
+
 // Store an AES-GCM CryptoKey for a conversation in localStorage
 export async function saveSessionKey(conversationId, cryptoKey) {
   // Export raw key material

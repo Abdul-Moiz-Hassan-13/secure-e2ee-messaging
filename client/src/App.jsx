@@ -52,7 +52,10 @@ useEffect(() => {
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
         <Route path="/file-download" element={<FileDownloadTest sessionKey={sessionKey} />} />
         <Route path="/chat-select" element={<ChatSelectPage />} />
-        <Route path="/chat/:peerId" element={<ChatPage sessionKey={sessionKey} />} />
+        <Route
+          path="/chat/:peerId"
+          element={<ChatPage currentUserId={localStorage.getItem("userId")} />}
+        />      
       </Routes>
     </BrowserRouter>
   );
