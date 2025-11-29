@@ -6,6 +6,7 @@ export default function FileTest() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [encryptedData, setEncryptedData] = useState(null);
   const [decryptedBlob, setDecryptedBlob] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -21,17 +22,19 @@ export default function FileTest() {
   async function handleEncrypt() {
     if (!selectedFile || !sessionKey) return;
 
+    setLoading(true);
+    
     const arrayBuffer = await selectedFile.arrayBuffer();
-
     const encrypted = await encryptFileBuffer(sessionKey, arrayBuffer);
 
-    console.log("Encrypted File:", encrypted);
-
     setEncryptedData(encrypted);
+    setLoading(false);
   }
 
   async function handleDecrypt() {
     if (!encryptedData || !sessionKey) return;
+
+    setLoading(true);
 
     const decryptedBuffer = await decryptFileBuffer(
       sessionKey,
@@ -44,41 +47,69 @@ export default function FileTest() {
     });
 
     setDecryptedBlob(blob);
-
-    console.log("File decrypted successfully!");
+    setLoading(false);
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Local File Encryption Test</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="w-full max-w-xl bg-white shadow-lg rounded-2xl p-8 border border-gray-200">
+        
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
+          Local File Encryption Test
+        </h2>
 
-      {!sessionKey && <p>Generating session key...</p>}
+        {!sessionKey ? (
+          <p className="text-center text-gray-600 mb-6">Generating session key...</p>
+        ) : (
+          <>
+            <input
+              type="file"
+              onChange={(e) => setSelectedFile(e.target.files[0])}
+              className="w-full border p-3 rounded-lg shadow-sm mb-6"
+            />
 
-      <input
-        type="file"
-        onChange={(e) => setSelectedFile(e.target.files[0])}
-      />
+            <button
+              onClick={handleEncrypt}
+              disabled={!selectedFile || loading}
+              className={`w-full py-3 rounded-xl font-semibold text-white 
+                ${loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"} 
+                transition-all shadow-md`}
+            >
+              {loading ? "Processing..." : "Encrypt File"}
+            </button>
 
-      <button onClick={handleEncrypt}>Encrypt File</button>
+            {encryptedData && (
+              <div className="mt-6 space-y-4">
+                <p className="text-green-700 font-medium">File encrypted successfully.</p>
 
-      {encryptedData && (
-        <>
-          <p>Encrypted successfully!</p>
-          <button onClick={handleDecrypt}>Decrypt File</button>
-        </>
-      )}
+                <button
+                  onClick={handleDecrypt}
+                  disabled={loading}
+                  className={`w-full py-3 rounded-xl font-semibold text-white 
+                    ${loading ? "bg-indigo-400" : "bg-indigo-600 hover:bg-indigo-700"} 
+                    transition-all shadow-md`}
+                >
+                  {loading ? "Processing..." : "Decrypt File"}
+                </button>
+              </div>
+            )}
 
-      {decryptedBlob && (
-        <>
-          <p>Decrypted successfully!</p>
-          <a
-            href={URL.createObjectURL(decryptedBlob)}
-            download={`decrypted_${selectedFile.name}`}
-          >
-            Download Decrypted File
-          </a>
-        </>
-      )}
+            {decryptedBlob && (
+              <div className="mt-6">
+                <p className="text-green-700 font-medium mb-2">File decrypted successfully.</p>
+                <a
+                  href={URL.createObjectURL(decryptedBlob)}
+                  download={`decrypted_${selectedFile.name}`}
+                  className="text-blue-600 underline"
+                >
+                  Download Decrypted File
+                </a>
+              </div>
+            )}
+          </>
+        )}
+
+      </div>
     </div>
   );
 }

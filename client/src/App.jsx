@@ -36,13 +36,12 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
-        <Route
-          path="/file-download"
-          element={<FileDownloadTest sessionKey={sessionKey} />}
-        />
+        <Route path="/file-download" element={<FileDownloadTest sessionKey={sessionKey} />} />
+        <Route path="/chat/:peerId" element={<ChatPage />} />
       </Routes>
     </BrowserRouter>
   );
+
 }
 
 export default App;
