@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "../api/axiosClient";
 import { useNavigate } from "react-router-dom";
+import { ensureIdentityKeysExist } from "../crypto/ensureIdentity";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -24,6 +25,8 @@ export default function LoginPage() {
       // Store token if needed
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("userId", res.data.userId);
+
+      await ensureIdentityKeysExist(res.data.userId);
 
       setMessage("Login successful, redirecting to dashboard...");
 

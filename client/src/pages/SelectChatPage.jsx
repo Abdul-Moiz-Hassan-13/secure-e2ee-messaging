@@ -24,7 +24,11 @@ export default function ChatSelectPage() {
   }
 
   function openChat(peerId) {
-    navigate(`/chat/${peerId}`);
+  if (!peerId || peerId === "null" || peerId === "undefined") {
+    console.error("❌ Invalid peerId attempted:", peerId);
+    return;
+  }
+  navigate(`/chat/${peerId}`);
   }
 
   return (

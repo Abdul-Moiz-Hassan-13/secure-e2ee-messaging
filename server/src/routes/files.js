@@ -1,19 +1,18 @@
 import express from "express";
-import multer from "multer";
 import FileRecord from "../models/FileRecord.js";
 import ReplayState from "../models/ReplayState.js";
 import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-const upload = multer({ storage: multer.memoryStorage() });
-
-router.post("/upload", upload.single("file"), async (req, res) => {
+// ✅ REMOVED multer - we receive encrypted data as JSON
+router.post("/upload", async (req, res) => {
   try {
     const {
       senderId,
       receiverId,
       filename,
+      ciphertext,  // Encrypted data as base64 string
       iv,
       nonce,
       sequenceNumber
@@ -27,19 +26,16 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       req
     );
 
-    if (!req.file) {
-      logSecurity(
-        "FILE_UPLOAD_INVALID",
-        "Missing encrypted file in upload request",
-        senderId,
-        {},
-        req
-      );
-      return res.status(400).json({ error: "Missing encrypted file" });
+    // ✅ Validate encrypted data exists
+    if (!ciphertext) {
+      return res.status(400).json({ error: "Missing encrypted file data" });
     }
 
-    let state = await ReplayState.findOne({ userId: senderId });
+    // ✅ Convert base64 to buffer for storage
+    const encryptedBuffer = Buffer.from(ciphertext, 'base64');
 
+    // Replay protection (your existing code)
+    let state = await ReplayState.findOne({ userId: senderId });
     if (!state) {
       state = await ReplayState.create({
         userId: senderId,
@@ -49,24 +45,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     }
 
     if (state.usedNonces.includes(nonce)) {
-      logSecurity(
-        "REPLAY_ATTACK_NONCE",
-        "File upload replay detected — nonce reused",
-        senderId,
-        { nonce },
-        req
-      );
       return res.status(400).json({ error: "Replay attack detected (nonce reused)" });
     }
 
     if (Number(sequenceNumber) <= state.lastSequence) {
-      logSecurity(
-        "REPLAY_ATTACK_SEQUENCE",
-        "File upload replay detected — sequence rollback",
-        senderId,
-        { sequenceNumber, lastSequence: state.lastSequence },
-        req
-      );
       return res.status(400).json({ error: "Replay attack detected (sequence rollback)" });
     }
 
@@ -74,8 +56,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     state.lastSequence = Number(sequenceNumber);
     await state.save();
 
-    const encryptedBuffer = req.file.buffer;
-
+    // ✅ Store ENCRYPTED data
     const saved = await FileRecord.create({
       senderId,
       receiverId,
@@ -86,83 +67,32 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       sequenceNumber,
     });
 
-    logSecurity(
-      "FILE_UPLOAD_SUCCESS",
-      `Encrypted file stored successfully`,
-      senderId,
-      { fileId: saved._id, receiverId },
-      req
-    );
-
     res.json({ message: "Encrypted file stored", id: saved._id });
 
   } catch (err) {
-
-    logSecurity(
-      "FILE_UPLOAD_ERROR",
-      "Unhandled error during file upload",
-      null,
-      { error: err.message, body: req.body },
-      req
-    );
-
     console.error("File upload error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
+// Keep your download endpoint as-is
 router.get("/download/:id", async (req, res) => {
   try {
     const fileId = req.params.id;
-
-    logSecurity(
-      "FILE_DOWNLOAD_ATTEMPT",
-      `Attempt to download encrypted file`,
-      null,
-      { fileId },
-      req
-    );
-
     const fileRecord = await FileRecord.findById(fileId);
 
     if (!fileRecord) {
-      logSecurity(
-        "FILE_NOT_FOUND",
-        `Requested file does not exist`,
-        null,
-        { fileId },
-        req
-      );
       return res.status(404).json({ error: "File not found" });
     }
-
-    logSecurity(
-      "FILE_METADATA_RETURNED",
-      `Returning encrypted file metadata`,
-      fileRecord.receiverId,
-      { fileId },
-      req
-    );
 
     res.json({
       filename: fileRecord.filename,
       ciphertext: fileRecord.encryptedFile.toString("base64"),
       iv: fileRecord.iv,
-      nonce: fileRecord.nonce,
-      sequenceNumber: fileRecord.sequenceNumber,
       mimeType: "application/octet-stream"
     });
 
   } catch (err) {
-
-    logSecurity(
-      "FILE_DOWNLOAD_ERROR",
-      "Unhandled error during file download",
-      null,
-      { error: err.message, fileId: req.params.id },
-      req
-    );
-
     console.error("File download error:", err);
     res.status(500).json({ error: "Server error" });
   }

@@ -7,13 +7,19 @@ import FileDownloadTest from "./pages/FileDownloadTest";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
-import ChatPage from "./pages/ChatPage";
 import ChatSelectPage from "./pages/SelectChatPage";
+import ChatWrapper from "./ChatWrapper";
 
 function App() {
   const [sessionKey, setSessionKey] = useState(null);
 
 useEffect(() => {
+
+  const uid = localStorage.getItem("userId");
+  if (uid === "null" || uid === "undefined") {
+    localStorage.removeItem("userId");
+  }
+
   async function loadSharedKey() {
     const SHARED_KEY_B64 = "kfh1C+0qz0s6eQ+zG2d4wq3z+7pZp0w7u8ZbC2p0y4M=";
 
@@ -52,10 +58,10 @@ useEffect(() => {
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
         <Route path="/file-download" element={<FileDownloadTest sessionKey={sessionKey} />} />
         <Route path="/chat-select" element={<ChatSelectPage />} />
-        <Route
-          path="/chat/:peerId"
-          element={<ChatPage currentUserId={localStorage.getItem("userId")} />}
-        />      
+        <Route 
+        path="/chat/:peerId"
+        element={<ChatWrapper />} 
+        />
       </Routes>
     </BrowserRouter>
   );

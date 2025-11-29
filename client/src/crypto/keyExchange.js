@@ -21,9 +21,20 @@ import {
   saveSessionKey,
 } from "./sessionKey";
 
+function keyToBase64(key) {
+  return window.crypto.subtle.exportKey("raw", key).then((raw) => {
+    const bytes = new Uint8Array(raw);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  });
+}
+
 export async function sendKeyInit(fromUserId, toUserId) {
-  const identityPrivateKey = await loadIdentityKeyPair();
-  const identityPublicJwk = await loadPublicIdentityKey();
+  const identityPrivateKey = await loadIdentityKeyPair(fromUserId); // ✅ Pass userId
+  const identityPublicJwk = await loadPublicIdentityKey(fromUserId); // ✅ Pass userId
 
   if (!identityPrivateKey || !identityPublicJwk) {
     throw new Error("Identity keys not found. Make sure user is registered on this device.");
@@ -122,8 +133,8 @@ export async function respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId) 
   // but it's not strictly necessary once the session key is derived.
 
   // 7) Load Bob's identity keys to sign KEY_CONFIRM
-  const bobIdentityPrivateKey = await loadIdentityKeyPair();
-  const bobIdentityPublicJwk = await loadPublicIdentityKey();
+  const bobIdentityPrivateKey = await loadIdentityKeyPair(myUserId); // ✅ Pass myUserId (Bob's ID)
+  const bobIdentityPublicJwk = await loadPublicIdentityKey(myUserId); // ✅ Pass myUserId (Bob's ID)
 
   if (!bobIdentityPrivateKey || !bobIdentityPublicJwk) {
     throw new Error("Bob's identity keys not found on this device.");
@@ -166,30 +177,39 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
     throw new Error("Ephemeral private key for initiator not found. Did you call sendKeyInit?");
   }
 
-  // 2) Fetch latest KEY_CONFIRM from Bob -> Alice, with a few retries
+  console.log("⏳ Initiator: Waiting for KEY_CONFIRM from peer...");
+  
+  // Improved retry logic with exponential backoff
   let record = null;
+  const maxAttempts = 8; // Increased attempts
+  const baseDelay = 800; // Start with 800ms
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      console.log(`🔄 Attempt ${attempt + 1}/${maxAttempts} to fetch KEY_CONFIRM...`);
       const confirmRes = await axios.get(
         `/keyexchange/confirm/${peerUserId}/${myUserId}`
       );
       record = confirmRes.data;
-      break; // got it 🎉
+      console.log("✅ KEY_CONFIRM received successfully!");
+      break;
     } catch (err) {
       const status = err?.response?.status;
-      if (status === 404 && attempt < 4) {
-        // Bob hasn't written KEY_CONFIRM yet – wait a bit and retry
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      if (status === 404 && attempt < maxAttempts - 1) {
+        // Exponential backoff: 800ms, 1.6s, 3.2s, etc.
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`⏰ KEY_CONFIRM not available yet, waiting ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
-      // other errors or last attempt -> rethrow
+      // Other errors or last attempt
+      console.error(`❌ Failed to get KEY_CONFIRM:`, err.message);
       throw err;
     }
   }
 
   if (!record) {
-    throw new Error("KEY_CONFIRM still not available after retries.");
+    throw new Error("KEY_CONFIRM still not available after retries. Peer may need more time to respond.");
   }
 
   const payload = record.payload;
@@ -214,6 +234,7 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
   );
 
   await saveSessionKey(conversationId, sessionKey);
+  console.log("✅ Initiator: Session key derived and saved!");
 
   return { conversationId, sessionKey };
 }
@@ -232,35 +253,61 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
  *  - It may throw if KEY_INIT / KEY_CONFIRM are not yet available.
  */
 export async function ensureSessionKeyForUsers(myUserId, peerUserId) {
+  console.log("🔍 ensureSessionKeyForUsers CALLED WITH:", {
+    myUserId, peerUserId,
+    type_myUserId: typeof myUserId,
+    type_peerUserId: typeof peerUserId
+  });
+
   // 1) If a session key already exists, just return it
   const existing = await loadSessionKeyForUsers(myUserId, peerUserId);
   if (existing) {
+    console.log("🔍 Existing sessionKey found. Using stored key.");
     return existing;
   }
 
-  // 2) Decide who is initiator vs responder in a deterministic way
+  // 2) Decide who is initiator vs responder
   const myIdStr = String(myUserId);
   const peerIdStr = String(peerUserId);
-  const amInitiator = myIdStr < peerIdStr; // "smaller" ID is initiator
+
+  console.log("🔍 Converted IDs:", { myIdStr, peerIdStr });
+  console.log(
+    "🔍 Comparing IDs to determine initiator:",
+    `"${myIdStr}" < "${peerIdStr}" = ${myIdStr < peerIdStr}`
+  );
+
+  const amInitiator = myIdStr < peerIdStr;
 
   if (amInitiator) {
-    // --- Alice side: initiator ---
-    // a) Send KEY_INIT (store my ephemeral private key)
+    console.log("🔍 Am I initiator? YES (sending KEY_INIT)");
+    
     await sendKeyInit(myUserId, peerUserId);
+    console.log("🔍 Initiator: sending KEY_INIT");
 
-    // b) Try to finalize using KEY_CONFIRM (Bob must have responded)
     try {
+      console.log("🔍 Initiator: waiting for KEY_CONFIRM");
       const { sessionKey } = await finalizeInitiatorSessionKey(myUserId, peerUserId);
+
+      // Export key
+      const keyB64 = await keyToBase64(sessionKey);
+      console.log("🔑 [KeyExchange] Initiator sessionKey (base64) =", keyB64);
+
       return sessionKey;
     } catch (err) {
-      console.warn("[KeyExchange] Initiator could not finalize session key yet. Peer may not have responded.", err);
+      console.warn("[KeyExchange] Initiator could not finalize session key. Peer may not have responded.", err);
       throw err;
     }
 
   } else {
-    // --- Bob side: responder ---
+    console.log("🔍 Am I initiator? NO (waiting for KEY_INIT)");
+
     try {
+      console.log("🔍 Responder: waiting for KEY_INIT then generating KEY_CONFIRM");
       const { sessionKey } = await respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId);
+
+      const keyB64 = await keyToBase64(sessionKey);
+      console.log("🔑 [KeyExchange] Responder sessionKey (base64) =", keyB64);
+
       return sessionKey;
     } catch (err) {
       console.warn("[KeyExchange] Responder could not derive session key. KEY_INIT may not be available yet.", err);
@@ -268,5 +315,7 @@ export async function ensureSessionKeyForUsers(myUserId, peerUserId) {
     }
   }
 }
+
+
 
 

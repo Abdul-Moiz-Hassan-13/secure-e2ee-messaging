@@ -28,6 +28,12 @@ function base64ToBuf(b64) {
 
 export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPublicJwk, saltString = "") {
   // 1) Import peer's ephemeral public key
+
+    console.log("🔑 generateSessionKey called with:", {
+        saltString,
+        peerEphemeralPublicJwk: peerEphemeralPublicJwk?.x?.substring(0, 10) + "..."
+    });
+
   const peerPublicKey = await window.crypto.subtle.importKey(
     "jwk",
     peerEphemeralPublicJwk,

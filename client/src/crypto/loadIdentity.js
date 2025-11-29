@@ -1,6 +1,9 @@
-export async function loadIdentityKeyPair() {
-  const priv = localStorage.getItem("identity_private");
-  if (!priv) return null;
+export async function loadIdentityKeyPair(userId) {
+  const priv = localStorage.getItem(`identity_private_${userId}`);
+  if (!priv) {
+    console.log(`❌ No private key found for user ${userId}`);
+    return null;
+  }
 
   const jwk = JSON.parse(priv);
   return await window.crypto.subtle.importKey(
@@ -12,9 +15,12 @@ export async function loadIdentityKeyPair() {
   );
 }
 
-export async function loadPublicIdentityKey() {
-  const pub = localStorage.getItem("identity_public");
-  if (!pub) return null;
+export async function loadPublicIdentityKey(userId) {
+  const pub = localStorage.getItem(`identity_public_${userId}`);
+  if (!pub) {
+    console.log(`❌ No public key found for user ${userId}`);
+    return null;
+  }
 
   const jwk = JSON.parse(pub);
   return jwk;

@@ -23,15 +23,26 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      // 1. First generate the identity key pair
       const keyPair = await generateIdentityKeyPair();
-      await saveIdentityKeyPair(keyPair);
+      
+      // 2. Export the public key to send to the server
       const publicKeyJwk = await exportPublicKey(keyPair.publicKey);
 
-      await axios.post("/auth/register", {
+      // 3. Register with the server and get the user ID
+      const res = await axios.post("/auth/register", {
         username,
         password,
         publicIdentityKey: publicKeyJwk,
       });
+
+      // 4. NOW save the identity keys with the user ID we received
+      await saveIdentityKeyPair(res.data.userId, {
+        privateKey: keyPair.privateKey,
+        publicKeyJwk: publicKeyJwk
+      });
+
+      console.log(`✅ Identity keys saved for user ${res.data.userId}`);
 
       setIsSuccess(true);
       setMessage("Registration successful. Redirecting to login...");
