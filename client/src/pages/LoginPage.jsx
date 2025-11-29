@@ -1,51 +1,39 @@
 import { useState } from "react";
 import axios from "../api/axiosClient";
-import { 
-  generateIdentityKeyPair, 
-  exportPublicKey, 
-  saveIdentityKeyPair 
-} from "../crypto/keys";
 import { useNavigate } from "react-router-dom";
 
-export default function RegisterPage() {
+export default function LoginPage() {
+  const navigate = useNavigate();
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
-  const handleRegister = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-
     setMessage("");
-    setIsSuccess(false);
     setLoading(true);
 
     try {
-      const keyPair = await generateIdentityKeyPair();
-      await saveIdentityKeyPair(keyPair);
-      const publicKeyJwk = await exportPublicKey(keyPair.publicKey);
-
-      await axios.post("/auth/register", {
+      const res = await axios.post("/auth/login", {
         username,
         password,
-        publicIdentityKey: publicKeyJwk,
       });
 
-      setIsSuccess(true);
-      setMessage("Registration successful. Redirecting to login...");
-      setTimeout(() => navigate("/login"), 1200);
+      // Store token if needed
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("userId", res.data.userId);
 
+      setMessage("Login successful, redirecting to dashboard...");
+
+      // Redirect to homepage or chat
+    setTimeout(() => navigate("/dashboard"), 800);
     } catch (error) {
-      console.error(error);
-
       const apiMessage =
-        error?.response?.data?.message ||
         error?.response?.data?.error ||
-        "Registration failed.";
+        "Login failed.";
 
-      setIsSuccess(false);
       setMessage(apiMessage);
     }
 
@@ -55,19 +43,20 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-md bg-white shadow-xl rounded-2xl p-8 border border-gray-200">
-        
+
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-          Create Your Account
+          Login
         </h2>
 
-        <form onSubmit={handleRegister} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="block text-gray-700 font-medium mb-1">
               Username
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-4 py-2 border rounded-lg shadow-sm
+              focus:ring-2 focus:ring-gray-500 focus:outline-none"
               placeholder="Enter username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -81,7 +70,8 @@ export default function RegisterPage() {
             </label>
             <input
               type="password"
-              className="w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-4 py-2 border rounded-lg shadow-sm
+              focus:ring-2 focus:ring-gray-500 focus:outline-none"
               placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -96,7 +86,7 @@ export default function RegisterPage() {
               w-full py-3 text-white font-semibold rounded-xl
               shadow-md hover:shadow-lg transition-all
               flex items-center justify-center gap-2
-              ${loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}
+              ${loading ? "bg-indigo-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}
             `}
           >
             {loading ? (
@@ -105,7 +95,7 @@ export default function RegisterPage() {
                 Processing...
               </>
             ) : (
-              "Register"
+              "Login"
             )}
           </button>
         </form>
@@ -113,7 +103,9 @@ export default function RegisterPage() {
         {message && (
           <p
             className={`mt-5 text-center font-medium ${
-              isSuccess ? "text-green-600" : "text-red-600"
+              message.includes("successful")
+                ? "text-green-600"
+                : "text-red-600"
             }`}
           >
             {message}

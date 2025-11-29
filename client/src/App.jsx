@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import RegisterPage from "./pages/RegisterPage";
 import FileTest from "./pages/FileTest";
 import FileDownloadTest from "./pages/FileDownloadTest";
+import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
 
 function App() {
   const [sessionKey, setSessionKey] = useState(null);
@@ -28,8 +31,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<RegisterPage />} />
-
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
         <Route
           path="/file-download"
