@@ -12,8 +12,6 @@ const fileRecordSchema = new mongoose.Schema({
 
   // replay protection
   nonce: { type: String, required: true },
-  sequenceNumber: { type: Number, required: true },
-
   timestamp: { type: Date, default: Date.now }
 });
 

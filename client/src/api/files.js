@@ -19,9 +19,9 @@ export async function uploadEncryptedFile(sessionKey, file, senderId, receiverId
     console.log("✅ File encrypted client-side");
     console.log("📊 Encrypted data size:", ciphertext.length + " characters");
 
-    // 3. Generate security parameters
+    // 3. Generate security parameters (ONLY nonce for files)
     const nonce = crypto.randomUUID();
-    const sequenceNumber = Date.now();
+    // ❌ REMOVE sequenceNumber for files
 
     // 4. Send ENCRYPTED data to server
     console.log("📤 Uploading encrypted data to server...");
@@ -29,10 +29,10 @@ export async function uploadEncryptedFile(sessionKey, file, senderId, receiverId
       senderId,
       receiverId,
       filename: file.name,
-      ciphertext,  // Already encrypted base64 string
+      ciphertext,
       iv,
       nonce,
-      sequenceNumber
+      // ❌ REMOVE: sequenceNumber
     });
 
     console.log("🎉 File uploaded successfully! ID:", response.data.id);

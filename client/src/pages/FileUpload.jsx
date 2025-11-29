@@ -8,57 +8,56 @@ export default function FileUpload({ currentUserId, peerId }) {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function handleUpload() {
-    if (!selectedFile || !currentUserId || !peerId) return;
+    async function handleUpload() {
+  if (!selectedFile || !currentUserId || !peerId) return;
 
-    setUploading(true);
-    setMessage("");
+  setUploading(true);
+  setMessage("");
 
-    try {
-      // 1. Get session key for encryption
-      const sessionKey = await ensureSessionKeyForUsers(currentUserId, peerId);
-      
-      // 2. Read file as ArrayBuffer
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      
-      console.log("📁 Original file size:", arrayBuffer.byteLength, "bytes");
+  try {
+    // 1. Get session key for encryption
+    const sessionKey = await ensureSessionKeyForUsers(currentUserId, peerId);
+    
+    // 2. Read file as ArrayBuffer
+    const arrayBuffer = await selectedFile.arrayBuffer();
+    
+    console.log("📁 Original file size:", arrayBuffer.byteLength, "bytes");
 
-      // 3. Encrypt file CLIENT-SIDE
-      const { iv, ciphertext } = await encryptFileBuffer(sessionKey, arrayBuffer);
-      
-      console.log("🔐 Encrypted data size:", ciphertext.length, "characters");
-      console.log("✅ File encrypted before upload");
+    // 3. Encrypt file CLIENT-SIDE
+    const { iv, ciphertext } = await encryptFileBuffer(sessionKey, arrayBuffer);
+    
+    console.log("🔐 Encrypted data size:", ciphertext.length, "characters");
+    console.log("✅ File encrypted before upload");
 
-      // 4. Generate security parameters
-      const nonce = crypto.randomUUID();
-      const sequenceNumber = Date.now();
+    // 4. Generate security parameters (ONLY nonce for files)
+    const nonce = crypto.randomUUID();
+    // ❌ REMOVE sequenceNumber for files
 
-      // 5. Send ENCRYPTED data to server (not raw file)
-      const response = await axiosClient.post("/files/upload", {
-        senderId: currentUserId,
-        receiverId: peerId,
-        filename: selectedFile.name,
-        ciphertext,  // Already encrypted base64 string
-        iv,
-        nonce,
-        sequenceNumber
-      });
+    // 5. Send ENCRYPTED data to server
+    const response = await axiosClient.post("/files/upload", {
+      senderId: currentUserId,
+      receiverId: peerId,
+      filename: selectedFile.name,
+      ciphertext,
+      iv,
+      nonce,
+      // ❌ REMOVE: sequenceNumber: Date.now()
+    });
 
-      setMessage(`✅ File uploaded successfully! ID: ${response.data.id}`);
-      
-      // 6. Verify encryption worked
-      console.log("📊 Upload verification:");
-      console.log(" - Original filename:", selectedFile.name);
-      console.log(" - Stored file ID:", response.data.id);
-      console.log(" - Encryption IV used:", iv.substring(0, 20) + "...");
+    setMessage(`✅ File uploaded successfully! ID: ${response.data.id}`);
+    
+    console.log("📊 Upload verification:");
+    console.log(" - Original filename:", selectedFile.name);
+    console.log(" - Stored file ID:", response.data.id);
+    console.log(" - Encryption IV used:", iv.substring(0, 20) + "...");
 
-    } catch (error) {
-      console.error("Upload error:", error);
-      setMessage(`❌ Upload failed: ${error.response?.data?.error || error.message}`);
-    }
-
-    setUploading(false);
+  } catch (error) {
+    console.error("Upload error:", error);
+    setMessage(`❌ Upload failed: ${error.response?.data?.error || error.message}`);
   }
+
+  setUploading(false);
+}
 
   return (
     <div className="p-6 border rounded-lg bg-white shadow-sm">

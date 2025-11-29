@@ -12,17 +12,17 @@ router.post("/upload", async (req, res) => {
       senderId,
       receiverId,
       filename,
-      ciphertext,  // Encrypted data as base64 string
+      ciphertext,
       iv,
-      nonce,
-      sequenceNumber
+      nonce
+      // ❌ REMOVE sequenceNumber from destructuring
     } = req.body;
 
     logSecurity(
       "FILE_UPLOAD_ATTEMPT",
       `User ${senderId} uploading encrypted file`,
       senderId,
-      { receiverId, filename, sequenceNumber, nonce },
+      { receiverId, filename, nonce }, // ❌ Remove sequenceNumber from log
       req
     );
 
@@ -31,10 +31,7 @@ router.post("/upload", async (req, res) => {
       return res.status(400).json({ error: "Missing encrypted file data" });
     }
 
-    // ✅ Convert base64 to buffer for storage
-    const encryptedBuffer = Buffer.from(ciphertext, 'base64');
-
-    // Replay protection (your existing code)
+    // ✅ Only check nonce reuse, IGNORE sequence numbers for files
     let state = await ReplayState.findOne({ userId: senderId });
     if (!state) {
       state = await ReplayState.create({
@@ -48,12 +45,8 @@ router.post("/upload", async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (nonce reused)" });
     }
 
-    if (Number(sequenceNumber) <= state.lastSequence) {
-      return res.status(400).json({ error: "Replay attack detected (sequence rollback)" });
-    }
-
+    // ✅ DON'T update lastSequence for files!
     state.usedNonces.push(nonce);
-    state.lastSequence = Number(sequenceNumber);
     await state.save();
 
     // ✅ Store ENCRYPTED data
@@ -61,10 +54,10 @@ router.post("/upload", async (req, res) => {
       senderId,
       receiverId,
       filename,
-      encryptedFile: encryptedBuffer,
+      encryptedFile: Buffer.from(ciphertext, 'base64'),
       iv,
       nonce,
-      sequenceNumber,
+      // ❌ Remove sequenceNumber from database or set to 0
     });
 
     res.json({ message: "Encrypted file stored", id: saved._id });

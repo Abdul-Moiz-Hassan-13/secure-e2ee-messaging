@@ -27,13 +27,12 @@ function base64ToBuf(b64) {
 }
 
 export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPublicJwk, saltString = "") {
+  console.log("🔑 generateSessionKey called with:", {
+    saltString,
+    peerEphemeralPublicJwk: peerEphemeralPublicJwk?.x?.substring(0, 10) + "..."
+  });
+
   // 1) Import peer's ephemeral public key
-
-    console.log("🔑 generateSessionKey called with:", {
-        saltString,
-        peerEphemeralPublicJwk: peerEphemeralPublicJwk?.x?.substring(0, 10) + "..."
-    });
-
   const peerPublicKey = await window.crypto.subtle.importKey(
     "jwk",
     peerEphemeralPublicJwk,
@@ -64,8 +63,10 @@ export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPub
     ["deriveKey"]
   );
 
-  const salt = new TextEncoder().encode(saltString);
-  const info = new TextEncoder().encode("chat-session");
+  // FIX: Use a consistent salt that doesn't depend on key roles
+  // The conversation ID is already sorted, so it's consistent
+  const salt = new TextEncoder().encode(saltString + "-session-key");
+  const info = new TextEncoder().encode("chat-session-v1");
 
   const sessionKey = await window.crypto.subtle.deriveKey(
     {
@@ -82,6 +83,11 @@ export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPub
     true,
     ["encrypt", "decrypt"]
   );
+
+  // DEBUG: Export and log the key to verify both sides get the same
+  const exportedKey = await window.crypto.subtle.exportKey("raw", sessionKey);
+  const keyB64 = bufToBase64(exportedKey);
+  console.log("🔑 Generated session key:", keyB64);
 
   return sessionKey;
 }

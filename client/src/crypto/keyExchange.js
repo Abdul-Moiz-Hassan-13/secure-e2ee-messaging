@@ -32,9 +32,26 @@ function keyToBase64(key) {
   });
 }
 
+// Helper to verify key consistency
+function verifyKeyConsistency(key1, key2, label) {
+  if (!key1 || !key2) {
+    console.log(`🔑 ${label}: One or both keys are missing`);
+    return false;
+  }
+  const str1 = JSON.stringify(key1);
+  const str2 = JSON.stringify(key2);
+  const isEqual = str1 === str2;
+  console.log(`🔑 ${label} keys equal:`, isEqual);
+  if (!isEqual) {
+    console.log("KEY1:", key1.x?.substring(0, 20) + "...");
+    console.log("KEY2:", key2.x?.substring(0, 20) + "...");
+  }
+  return isEqual;
+}
+
 export async function sendKeyInit(fromUserId, toUserId) {
-  const identityPrivateKey = await loadIdentityKeyPair(fromUserId); // ✅ Pass userId
-  const identityPublicJwk = await loadPublicIdentityKey(fromUserId); // ✅ Pass userId
+  const identityPrivateKey = await loadIdentityKeyPair(fromUserId);
+  const identityPublicJwk = await loadPublicIdentityKey(fromUserId);
 
   if (!identityPrivateKey || !identityPublicJwk) {
     throw new Error("Identity keys not found. Make sure user is registered on this device.");
@@ -64,20 +81,34 @@ export async function sendKeyInit(fromUserId, toUserId) {
     ephemeralPubJwk = JSON.parse(ephemeralPubJwk);
   }
 
+  // ADD DEBUG LOGGING HERE
+  console.log("🔑 [DEBUG] Alice's stored ephemeral key:", {
+    x: ephemeralPubJwk.x?.substring(0, 30),
+    y: ephemeralPubJwk.y?.substring(0, 30)
+  });
+
   // Build the KEY_INIT payload
   const payload = {
     type: "KEY_INIT",
     from: fromUserId,
     to: toUserId,
     alice_identity_public: identityPublicJwk,
-    alice_ephemeral_public: ephemeralPubJwk,
+    alice_ephemeral_public: ephemeralPubJwk, // This should be the SAME as above!
     timestamp: Date.now(),
     nonce: crypto.randomUUID(),
     sequence: 1,
   };
 
+  // ADD DEBUG LOGGING HERE TOO
+  console.log("🔑 [DEBUG] Alice's sent ephemeral key:", {
+    x: payload.alice_ephemeral_public.x?.substring(0, 30),
+    y: payload.alice_ephemeral_public.y?.substring(0, 30)
+  });
+
   const signature = await signPayload(identityPrivateKey, payload);
   payload.signature = signature;
+
+  console.log("🔑 SENDING KEY_INIT with ephemeral public:", ephemeralPubJwk.x?.substring(0, 20) + "...");
 
   const response = await axios.post("/keyexchange/init", {
     from: fromUserId,
@@ -99,6 +130,18 @@ export async function respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId) 
   const record = initRes.data;
   const payload = record.payload;
 
+    // ADD THIS DEBUG LOGGING
+  console.log("🔑 [DEBUG] BOB RECEIVED KEY_INIT:");
+  console.log("  Ephemeral Key X (first 30 chars):", payload.alice_ephemeral_public?.x?.substring(0, 30));
+  console.log("  Ephemeral Key Y (first 30 chars):", payload.alice_ephemeral_public?.y?.substring(0, 30));
+  console.log("  Full Key Structure:", JSON.stringify(payload.alice_ephemeral_public).substring(0, 200) + "...");
+
+    // ADD TIMESTAMP DEBUGGING
+  console.log("🔑 [DEBUG] Bob received KEY_INIT:");
+  console.log("  Key X:", payload.alice_ephemeral_public?.x?.substring(0, 30));
+  console.log("  Record timestamp:", record.createdAt);
+  console.log("  Current time:", new Date().toISOString());
+  
   // 2) Separate signature and original payload
   const { signature, ...unsignedPayload } = payload;
 
@@ -119,22 +162,27 @@ export async function respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId) 
   const ephBob = await generateEphemeralECDHKeyPair();
   const ephBobPubJwk = await exportEphemeralPublicKey(ephBob.publicKey);
 
+  // DEBUG: Log key details
+  console.log("🔑 BOB: Generating session key with:", {
+    myKeyType: "bobPrivate",
+    peerKeyType: "alicePublic", 
+    peerKey: payload.alice_ephemeral_public?.x?.substring(0, 20) + "...",
+    salt: conversationId
+  });
+
   // 5) Derive shared session key using Bob's ephemeral private + Alice's ephemeral public
   const sessionKey = await generateSessionKey(
     ephBob.privateKey,
     payload.alice_ephemeral_public,
-    conversationId // used as salt string for HKDF
+    conversationId
   );
 
   // 6) Store session key for this conversation locally
   await saveSessionKey(conversationId, sessionKey);
 
-  // (Optional) You could also store Bob's ephemeral private key if you wanted to re-derive later
-  // but it's not strictly necessary once the session key is derived.
-
   // 7) Load Bob's identity keys to sign KEY_CONFIRM
-  const bobIdentityPrivateKey = await loadIdentityKeyPair(myUserId); // ✅ Pass myUserId (Bob's ID)
-  const bobIdentityPublicJwk = await loadPublicIdentityKey(myUserId); // ✅ Pass myUserId (Bob's ID)
+  const bobIdentityPrivateKey = await loadIdentityKeyPair(myUserId);
+  const bobIdentityPublicJwk = await loadPublicIdentityKey(myUserId);
 
   if (!bobIdentityPrivateKey || !bobIdentityPublicJwk) {
     throw new Error("Bob's identity keys not found on this device.");
@@ -154,8 +202,16 @@ export async function respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId) 
     sequence: 2,
   };
 
+  // ADD DEBUG LOGGING HERE TOO
+  console.log("🔑 [DEBUG] Bob sending back Alice's ephemeral key:", {
+    x: confirmPayload.alice_ephemeral_public?.x?.substring(0, 30),
+    y: confirmPayload.alice_ephemeral_public?.y?.substring(0, 30)
+  });
+
   const confirmSignature = await signPayload(bobIdentityPrivateKey, confirmPayload);
   confirmPayload.signature = confirmSignature;
+
+  console.log("🔑 BOB: Sending KEY_CONFIRM with ephemeral public:", ephBobPubJwk.x?.substring(0, 20) + "...");
 
   // 9) Send KEY_CONFIRM back to Alice
   await axios.post("/keyexchange/confirm", {
@@ -181,8 +237,8 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
   
   // Improved retry logic with exponential backoff
   let record = null;
-  const maxAttempts = 8; // Increased attempts
-  const baseDelay = 800; // Start with 800ms
+  const maxAttempts = 8;
+  const baseDelay = 800;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -196,13 +252,11 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
     } catch (err) {
       const status = err?.response?.status;
       if (status === 404 && attempt < maxAttempts - 1) {
-        // Exponential backoff: 800ms, 1.6s, 3.2s, etc.
         const delay = baseDelay * Math.pow(2, attempt);
         console.log(`⏰ KEY_CONFIRM not available yet, waiting ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
-      // Other errors or last attempt
       console.error(`❌ Failed to get KEY_CONFIRM:`, err.message);
       throw err;
     }
@@ -227,6 +281,22 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
     throw new Error("Invalid KEY_CONFIRM signature from peer (possible MITM).");
   }
 
+  // DEBUG: Log key details
+  console.log("🔑 ALICE: Generating session key with:", {
+    myKeyType: "alicePrivate",
+    peerKeyType: "bobPublic",
+    peerKey: payload.bob_ephemeral_public?.x?.substring(0, 20) + "...",
+    salt: conversationId
+  });
+
+  // Verify the ephemeral public key matches what Bob sent
+  const aliceEphemeralPublic = JSON.parse(localStorage.getItem(`ephem_pub_${conversationId}`));
+  verifyKeyConsistency(
+    payload.alice_ephemeral_public,
+    aliceEphemeralPublic,
+    "Alice ephemeral public (sent vs received back)"
+  );
+
   const sessionKey = await generateSessionKey(
     aliceEphemeralPrivate,
     payload.bob_ephemeral_public,
@@ -241,17 +311,6 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
 
 // --- High-level helper: ensure a session key exists for (myUserId, peerUserId) ---
 
-/**
- * Ensure there is an AES session key for a conversation between myUserId and peerUserId.
- * If one already exists in localStorage, it is loaded and returned.
- * Otherwise:
- *  - The "initiator" (lexicographically smaller userId) sends KEY_INIT and tries to finalize.
- *  - The "responder" tries to respond to KEY_INIT and derive the session key.
- *
- * NOTE: This is a simple version:
- *  - It assumes the peer will eventually respond.
- *  - It may throw if KEY_INIT / KEY_CONFIRM are not yet available.
- */
 export async function ensureSessionKeyForUsers(myUserId, peerUserId) {
   console.log("🔍 ensureSessionKeyForUsers CALLED WITH:", {
     myUserId, peerUserId,
@@ -316,6 +375,36 @@ export async function ensureSessionKeyForUsers(myUserId, peerUserId) {
   }
 }
 
+// Add this debug function to your keyExchange.js
+export async function debugKeyTransmission() {
+  try {
+    // Generate a real ephemeral key pair for testing
+    const keyPair = await window.crypto.subtle.generateKey(
+      {
+        name: "ECDH",
+        namedCurve: "P-256"
+      },
+      true,
+      ["deriveKey", "deriveBits"]
+    );
 
+    const publicKeyJwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
+    
+    console.log("🔑 [FRONTEND DEBUG] Generated test key:");
+    console.log("  X:", publicKeyJwk.x?.substring(0, 30));
+    console.log("  Y:", publicKeyJwk.y?.substring(0, 30));
+    console.log("  Full X length:", publicKeyJwk.x?.length);
+    console.log("  Full Y length:", publicKeyJwk.y?.length);
 
+    // Send to debug endpoint
+    const response = await axios.post('/api/keyexchange/debug-key-transmission', {
+      originalKey: publicKeyJwk
+    });
 
+    console.log("🔑 [FRONTEND DEBUG] Test result:", response.data);
+    return response.data;
+
+  } catch (error) {
+    console.error("❌ Debug test failed:", error);
+  }
+}
