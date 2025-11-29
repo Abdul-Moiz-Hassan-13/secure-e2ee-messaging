@@ -22,23 +22,38 @@ import {
 } from "./sessionKey";
 
 export async function sendKeyInit(fromUserId, toUserId) {
-  // 1) Load identity keys (ECDSA)
-  const identityPrivateKey = await loadIdentityKeyPair();   // signing key
-  const identityPublicJwk = await loadPublicIdentityKey();  // public JWK
+  const identityPrivateKey = await loadIdentityKeyPair();
+  const identityPublicJwk = await loadPublicIdentityKey();
 
   if (!identityPrivateKey || !identityPublicJwk) {
     throw new Error("Identity keys not found. Make sure user is registered on this device.");
   }
 
-  // 2) Generate ephemeral ECDH key pair for this conversation
-  const ephemeral = await generateEphemeralECDHKeyPair();
-  const ephemeralPubJwk = await exportEphemeralPublicKey(ephemeral.publicKey);
-
-  // 3) Build a stable conversation ID and store the ephemeral private key
+  // Conversation-scoped persistent storage
   const conversationId = buildConversationId(fromUserId, toUserId);
-  await saveEphemeralPrivateKey(conversationId, ephemeral.privateKey);
+  const privKeyTag = `ephem_priv_${conversationId}`;
+  const pubKeyTag  = `ephem_pub_${conversationId}`;
 
-  // 4) Build the signed KEY_INIT payload
+  // Try to reuse existing ephemeral private key
+  let ephemeralPrivate = await loadEphemeralPrivateKey(conversationId);
+  let ephemeralPubJwk = localStorage.getItem(pubKeyTag);
+
+  if (!ephemeralPrivate || !ephemeralPubJwk) {
+    // First-time key exchange → generate new pair
+    const ephemeral = await generateEphemeralECDHKeyPair();
+    ephemeralPrivate = ephemeral.privateKey;
+
+    ephemeralPubJwk = await exportEphemeralPublicKey(ephemeral.publicKey);
+
+    // Persist for later finalization
+    await saveEphemeralPrivateKey(conversationId, ephemeralPrivate);
+    localStorage.setItem(pubKeyTag, JSON.stringify(ephemeralPubJwk));
+  } else {
+    // Convert stored JSON back to object
+    ephemeralPubJwk = JSON.parse(ephemeralPubJwk);
+  }
+
+  // Build the KEY_INIT payload
   const payload = {
     type: "KEY_INIT",
     from: fromUserId,
@@ -47,18 +62,16 @@ export async function sendKeyInit(fromUserId, toUserId) {
     alice_ephemeral_public: ephemeralPubJwk,
     timestamp: Date.now(),
     nonce: crypto.randomUUID(),
-    sequence: 1
+    sequence: 1,
   };
 
   const signature = await signPayload(identityPrivateKey, payload);
-
   payload.signature = signature;
 
-  // 5) Send to backend keyexchange route
   const response = await axios.post("/keyexchange/init", {
     from: fromUserId,
     to: toUserId,
-    payload
+    payload,
   });
 
   return response.data;
@@ -146,24 +159,42 @@ export async function respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId) 
 // --- Alice side: after she has sent KEY_INIT, finalize session key using KEY_CONFIRM ---
 
 export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
-  // myUserId = Alice, peerUserId = Bob
   const conversationId = buildConversationId(myUserId, peerUserId);
 
-  // 1) Load Alice's ephemeral private key for this conversation
   const aliceEphemeralPrivate = await loadEphemeralPrivateKey(conversationId);
   if (!aliceEphemeralPrivate) {
     throw new Error("Ephemeral private key for initiator not found. Did you call sendKeyInit?");
   }
 
-  // 2) Fetch latest KEY_CONFIRM from Bob -> Alice
-  const confirmRes = await axios.get(`/keyexchange/confirm/${peerUserId}/${myUserId}`);
-  const record = confirmRes.data;
-  const payload = record.payload;
+  // 2) Fetch latest KEY_CONFIRM from Bob -> Alice, with a few retries
+  let record = null;
 
-  // 3) Separate signature and payload without signature
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const confirmRes = await axios.get(
+        `/keyexchange/confirm/${peerUserId}/${myUserId}`
+      );
+      record = confirmRes.data;
+      break; // got it 🎉
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 404 && attempt < 4) {
+        // Bob hasn't written KEY_CONFIRM yet – wait a bit and retry
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        continue;
+      }
+      // other errors or last attempt -> rethrow
+      throw err;
+    }
+  }
+
+  if (!record) {
+    throw new Error("KEY_CONFIRM still not available after retries.");
+  }
+
+  const payload = record.payload;
   const { signature, ...unsignedPayload } = payload;
 
-  // 4) Verify Bob's signature using his identity public key from payload
   const bobIdentityPublicJwk = payload.bob_identity_public;
 
   const isValid = await verifyPayload(
@@ -176,14 +207,12 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
     throw new Error("Invalid KEY_CONFIRM signature from peer (possible MITM).");
   }
 
-  // 5) Derive the same session key using Alice's ephemeral private + Bob's ephemeral public
   const sessionKey = await generateSessionKey(
     aliceEphemeralPrivate,
     payload.bob_ephemeral_public,
-    conversationId // same salt as Bob used
+    conversationId
   );
 
-  // 6) Store the session key locally
   await saveSessionKey(conversationId, sessionKey);
 
   return { conversationId, sessionKey };
