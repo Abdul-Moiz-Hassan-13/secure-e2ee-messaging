@@ -6,7 +6,6 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// POST /api/auth/register
 router.post('/register', async (req, res) => {
     try {
         logSecurity(
@@ -19,7 +18,6 @@ router.post('/register', async (req, res) => {
 
         const { username, password, publicIdentityKey } = req.body;
 
-        // 1. Check if user exists
         const existing = await User.findOne({ username });
         if (existing) {
 
@@ -34,10 +32,8 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: "Username already taken" });
         }
 
-        // 2. Hash password
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // 3. Create user
         const newUser = await User.create({
             username,
             passwordHash,
@@ -71,7 +67,6 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// POST /api/auth/login
 router.post('/login', async (req, res) => {
     try {
 
@@ -115,7 +110,6 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: "Invalid username or password" });
         }
 
-        // 3. Create JWT token
         const token = jwt.sign(
             { userId: user._id },
             process.env.JWT_SECRET,

@@ -4,12 +4,10 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// POST /api/keyexchange/init
 router.post('/init', async (req, res) => {
   try {
     const { from, to, payload } = req.body;
 
-    // 🔹 Log START of key exchange attempt
     logSecurity(
       "KEY_EXCHANGE_ATTEMPT",
       `Key exchange init attempt from ${from} to ${to}`,
@@ -18,7 +16,6 @@ router.post('/init', async (req, res) => {
       req
     );
 
-    // Optional: validate required data
     if (!from || !to || !payload) {
       logSecurity(
         "KEY_EXCHANGE_INVALID_PAYLOAD",
@@ -30,7 +27,6 @@ router.post('/init', async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 🔹 Save the exchange request to DB
     const saved = await KeyExchange.create({
       from,
       to,
@@ -38,7 +34,6 @@ router.post('/init', async (req, res) => {
       payload
     });
 
-    // 🔹 Successful key exchange init
     logSecurity(
       "KEY_EXCHANGE_SUCCESS",
       `Key exchange init stored successfully`,
@@ -51,7 +46,6 @@ router.post('/init', async (req, res) => {
 
   } catch (err) {
 
-    // 🔹 Log failure
     logSecurity(
       "KEY_EXCHANGE_ERROR",
       "Server error during key exchange init",

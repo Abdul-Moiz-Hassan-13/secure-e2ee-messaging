@@ -4,10 +4,8 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// Utility: base64 → Buffer
 const b64ToBuf = (b64) => Buffer.from(b64, "base64");
 
-// SIGNED ECDH DEMO (MITM detection)
 router.post("/signed-ecdh", async (req, res) => {
   try {
     const { 
@@ -16,7 +14,6 @@ router.post("/signed-ecdh", async (req, res) => {
       signature 
     } = req.body;
 
-    // 🔹 Log attempt
     logSecurity(
       "SIGNED_ECDH_ATTEMPT",
       "Client initiated signed ECDH key exchange",
@@ -25,7 +22,6 @@ router.post("/signed-ecdh", async (req, res) => {
       req
     );
 
-    // Missing fields validation
     if (!clientEphemeralPublicKey || !clientIdentityPublicKey || !signature) {
       logSecurity(
         "SIGNED_ECDH_INVALID_PAYLOAD",
@@ -37,7 +33,6 @@ router.post("/signed-ecdh", async (req, res) => {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    // 1️⃣ VERIFY SIGNATURE
     let isValid = false;
     try {
       isValid = crypto.verify(
@@ -50,7 +45,6 @@ router.post("/signed-ecdh", async (req, res) => {
         b64ToBuf(signature)
       );
     } catch (err) {
-      // If verify() itself fails → invalid signature
       isValid = false;
     }
 
@@ -66,7 +60,6 @@ router.post("/signed-ecdh", async (req, res) => {
       return res.status(400).json({ error: "Invalid signature — MITM detected" });
     }
 
-    // 2️⃣ SIGNATURE IS VALID → Perform ECDH
     const serverECDH = crypto.createECDH("prime256v1");
     serverECDH.generateKeys();
 

@@ -4,13 +4,9 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// =========================
-// GET /api/users
-// =========================
 router.get('/', async (req, res) => {
   try {
 
-    // Log metadata access request
     logSecurity(
       "METADATA_ACCESS",
       "User list requested",
@@ -24,7 +20,6 @@ router.get('/', async (req, res) => {
       publicIdentityKey: 1
     });
 
-    // Log success
     logSecurity(
       "METADATA_RETURNED",
       "User list returned successfully",
@@ -50,13 +45,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// =========================
-// GET /api/users/:id
-// =========================
 router.get('/:id', async (req, res) => {
   try {
 
-    // Log metadata access request
     logSecurity(
       "METADATA_ACCESS",
       "Specific user metadata requested",
@@ -83,7 +74,6 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Log successful return
     logSecurity(
       "METADATA_RETURNED",
       "User metadata returned",

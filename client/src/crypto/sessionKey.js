@@ -1,4 +1,3 @@
-// Import peer's ephemeral ECDH public key (JWK → CryptoKey)
 export async function importPeerEphemeralPublicKey(jwk) {
   return await window.crypto.subtle.importKey(
     "jwk",
@@ -8,11 +7,10 @@ export async function importPeerEphemeralPublicKey(jwk) {
       namedCurve: "P-256"
     },
     true,
-    [] // no key usages needed for public key import
+    []
   );
 }
 
-// Derive the raw ECDH shared secret (ArrayBuffer)
 export async function deriveSharedSecret(myEphemeralPrivateKey, peerEphemeralPublicKey) {
   const sharedSecret = await window.crypto.subtle.deriveBits(
     {
@@ -20,15 +18,13 @@ export async function deriveSharedSecret(myEphemeralPrivateKey, peerEphemeralPub
       public: peerEphemeralPublicKey
     },
     myEphemeralPrivateKey,
-    256 // produce a 256-bit shared secret
+    256
   );
 
   return sharedSecret;
 }
 
-// Derive AES-256-GCM session key using HKDF over the shared secret
 export async function deriveSessionKey(sharedSecret, saltString = "", infoString = "chat-session") {
-  // Import raw shared secret for HKDF
   const hkdfBaseKey = await window.crypto.subtle.importKey(
     "raw",
     sharedSecret,
@@ -40,7 +36,6 @@ export async function deriveSessionKey(sharedSecret, saltString = "", infoString
   const saltBytes = new TextEncoder().encode(saltString);
   const infoBytes = new TextEncoder().encode(infoString);
 
-  // HKDF → AES-256-GCM
   const sessionKey = await window.crypto.subtle.deriveKey(
     {
       name: "HKDF",
@@ -53,25 +48,21 @@ export async function deriveSessionKey(sharedSecret, saltString = "", infoString
       name: "AES-GCM",
       length: 256
     },
-    false, // session key should NOT be extractable for security
+    false,
     ["encrypt", "decrypt"]
   );
 
   return sessionKey;
 }
 
-// High-level helper: from my private ECDH key + peer public JWK → AES-GCM key
 export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPublicJwk, saltString = "") {
-  // Convert peer's JWK → CryptoKey
   const peerPublicKey = await importPeerEphemeralPublicKey(peerEphemeralPublicJwk);
 
-  // Get the shared secret from ECDH
   const sharedSecret = await deriveSharedSecret(
     myEphemeralPrivateKey,
     peerPublicKey
   );
 
-  // HKDF → AES-256-GCM session key
   const sessionKey = await deriveSessionKey(
     sharedSecret,
     saltString,

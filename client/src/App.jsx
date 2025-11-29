@@ -8,7 +8,6 @@ import FileDownloadTest from "./pages/FileDownloadTest";
 function App() {
   const [sessionKey, setSessionKey] = useState(null);
 
-  // Generate a temporary AES session key for testing only
   useEffect(() => {
     async function generateTestKey() {
       const key = await crypto.subtle.generateKey(
@@ -31,7 +30,6 @@ function App() {
       <Routes>
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* TEMPORARY TEST ROUTES */}
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
         <Route
           path="/file-download"

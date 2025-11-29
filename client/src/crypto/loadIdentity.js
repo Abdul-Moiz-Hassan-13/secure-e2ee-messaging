@@ -17,5 +17,5 @@ export async function loadPublicIdentityKey() {
   if (!pub) return null;
 
   const jwk = JSON.parse(pub);
-  return jwk; // For identity public key, JWK form is enough
+  return jwk;
 }

@@ -4,9 +4,9 @@ const keyExchangeSchema = new mongoose.Schema({
   from: { type: String, required: true },
   to: { type: String, required: true },
 
-  type: { type: String, required: true }, // KEY_INIT, KEY_RESPONSE, KEY_CONFIRM
+  type: { type: String, required: true },
 
-  payload: { type: Object, required: true }, // Contains public keys, signatures, timestamps, etc.
+  payload: { type: Object, required: true },
 
   timestamp: {
     type: Date,

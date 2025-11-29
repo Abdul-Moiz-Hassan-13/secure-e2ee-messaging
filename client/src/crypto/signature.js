@@ -1,5 +1,4 @@
 export async function signPayload(privateKey, payload) {
-  // Convert payload object → sorted JSON → ArrayBuffer
   const encoded = new TextEncoder().encode(JSON.stringify(payload));
 
   const signature = await window.crypto.subtle.sign(
@@ -11,7 +10,6 @@ export async function signPayload(privateKey, payload) {
     encoded
   );
 
-  // Convert signature (ArrayBuffer) → base64url
   return bufferToBase64Url(signature);
 }
 

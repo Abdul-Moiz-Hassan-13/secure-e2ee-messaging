@@ -6,7 +6,6 @@
 
 <script>
 async function send() {
-  // 1. CREATE IDENTITY KEY
   const identity = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true,
@@ -16,7 +15,6 @@ async function send() {
   const identityPub = await crypto.subtle.exportKey("spki", identity.publicKey);
   const identityPubB64 = btoa(String.fromCharCode(...new Uint8Array(identityPub)));
 
-  // 2. CREATE EPHEMERAL ECDH KEY
   const eph = await crypto.subtle.generateKey(
     { name: "ECDH", namedCurve: "P-256" },
     true,
@@ -26,7 +24,6 @@ async function send() {
   const ephPub = await crypto.subtle.exportKey("raw", eph.publicKey);
   const ephPubB64 = btoa(String.fromCharCode(...new Uint8Array(ephPub)));
 
-  // 3. SIGN THE EPHEMERAL KEY USING IDENTITY KEY
   const signatureBuf = await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     identity.privateKey,
@@ -35,7 +32,6 @@ async function send() {
 
   const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)));
 
-  // 4. SEND TO SERVER
   const res = await fetch("http://localhost:4000/api/mitm-demo/signed-ecdh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

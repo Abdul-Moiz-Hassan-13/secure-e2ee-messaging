@@ -15,16 +15,12 @@ function RegisterPage() {
     e.preventDefault();
 
     try {
-      // 1. Generate ECC identity key pair
       const keyPair = await generateIdentityKeyPair();
 
-      // 2. Save private + public identity key locally
       await saveIdentityKeyPair(keyPair);
 
-      // 3. Export public key to JWK
       const publicKeyJwk = await exportPublicKey(keyPair.publicKey);
 
-      // 4. Send data to server
       const res = await axios.post("/auth/register", {
         username,
         password,

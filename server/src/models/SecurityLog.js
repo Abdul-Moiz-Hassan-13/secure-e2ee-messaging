@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const logSchema = new mongoose.Schema({
-  eventType: { type: String, required: true },   // e.g. AUTH_SUCCESS, MITM_DETECTED
+  eventType: { type: String, required: true },
   message: { type: String, required: true },
   userId: { type: String },
   ip: { type: String },

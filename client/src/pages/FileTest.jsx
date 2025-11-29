@@ -7,7 +7,6 @@ export default function FileTest() {
   const [encryptedData, setEncryptedData] = useState(null);
   const [decryptedBlob, setDecryptedBlob] = useState(null);
 
-  // Generate temporary AES-256-GCM key
   useEffect(() => {
     (async () => {
       const key = await crypto.subtle.generateKey(

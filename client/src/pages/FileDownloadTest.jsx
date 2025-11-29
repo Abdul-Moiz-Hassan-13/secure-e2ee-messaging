@@ -10,7 +10,6 @@ export default function FileDownloadTest({ sessionKey }) {
 
     const url = URL.createObjectURL(blob);
 
-    // Trigger browser download
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;

@@ -2,14 +2,12 @@ import axiosClient from "./axiosClient";
 import { decryptMessage } from "../crypto/encryption";
 
 export async function getDecryptedConversation(sessionKey, userId, peerId) {
-  // 1. Fetch encrypted messages
   const response = await axiosClient.get(
     `/messages/conversation/${userId}/${peerId}`
   );
 
   const encryptedMessages = response.data;
 
-  // 2. Decrypt each message
   const decrypted = [];
 
   for (const msg of encryptedMessages) {
@@ -29,7 +27,6 @@ export async function getDecryptedConversation(sessionKey, userId, peerId) {
 
     } catch (err) {
       console.error("Decryption failed for message:", msg._id, err);
-      // optional: skip or push error object
     }
   }
 

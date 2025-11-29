@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   publicIdentityKey: {
-    type: Object,   // will store ECC public key (JWK)
+    type: Object,
     required: true
   },
   createdAt: {

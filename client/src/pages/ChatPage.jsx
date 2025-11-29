@@ -6,7 +6,6 @@ export default function ChatPage({ sessionKey, userId, peerId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
-  // Load conversation on mount
   useEffect(() => {
     loadConversation();
   }, []);
@@ -28,7 +27,6 @@ export default function ChatPage({ sessionKey, userId, peerId }) {
 
     setInput("");
 
-    // reload decrypted conversation
     loadConversation();
   }
 

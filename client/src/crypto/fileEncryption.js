@@ -1,6 +1,5 @@
 import { generateRandomIv } from "./encryption";
 
-// SAFE base64 encoding
 function bufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -14,7 +13,6 @@ function bufferToBase64(buffer) {
   return btoa(binary);
 }
 
-// SAFE base64 decoding
 function base64ToBuffer(base64) {
   const binary = atob(base64);
   const len = binary.length;
@@ -27,7 +25,6 @@ function base64ToBuffer(base64) {
   return bytes.buffer;
 }
 
-// ENCRYPT FILE BUFFER
 export async function encryptFileBuffer(sessionKey, arrayBuffer) {
   const iv = generateRandomIv();
 
@@ -46,7 +43,6 @@ export async function encryptFileBuffer(sessionKey, arrayBuffer) {
   };
 }
 
-// DECRYPT FILE BUFFER
 export async function decryptFileBuffer(sessionKey, ciphertextBase64, ivBase64) {
   const iv = new Uint8Array(base64ToBuffer(ivBase64));
   const encrypted = base64ToBuffer(ciphertextBase64);

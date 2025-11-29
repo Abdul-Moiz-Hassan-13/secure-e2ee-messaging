@@ -6,12 +6,8 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// Multer storage in memory — suitable for encrypted files
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ===========================
-// POST /api/files/upload
-// ===========================
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const {
@@ -23,7 +19,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       sequenceNumber
     } = req.body;
 
-    // Log initial file upload attempt
     logSecurity(
       "FILE_UPLOAD_ATTEMPT",
       `User ${senderId} uploading encrypted file`,
@@ -43,9 +38,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Missing encrypted file" });
     }
 
-    // -------------------------
-    // 🔥 REPLAY ATTACK CHECKS
-    // -------------------------
     let state = await ReplayState.findOne({ userId: senderId });
 
     if (!state) {
@@ -56,7 +48,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // 1️⃣ Nonce reused
     if (state.usedNonces.includes(nonce)) {
       logSecurity(
         "REPLAY_ATTACK_NONCE",
@@ -68,7 +59,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (nonce reused)" });
     }
 
-    // 2️⃣ Sequence regression
     if (Number(sequenceNumber) <= state.lastSequence) {
       logSecurity(
         "REPLAY_ATTACK_SEQUENCE",
@@ -80,14 +70,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (sequence rollback)" });
     }
 
-    // Update state
     state.usedNonces.push(nonce);
     state.lastSequence = Number(sequenceNumber);
     await state.save();
 
-    // -------------------------
-    // 📁 Save encrypted file
-    // -------------------------
     const encryptedBuffer = req.file.buffer;
 
     const saved = await FileRecord.create({
@@ -125,9 +111,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-// ===========================
-// GET /api/files/download/:id
-// ===========================
 router.get("/download/:id", async (req, res) => {
   try {
     const fileId = req.params.id;

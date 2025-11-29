@@ -1,6 +1,3 @@
-// =========================
-// Base64 Encoding Helpers
-// =========================
 function bufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -19,18 +16,12 @@ function base64ToBuffer(base64) {
   return bytes.buffer;
 }
 
-// =========================
-// IV Generator (AES-GCM)
-// =========================
 export function generateRandomIv() {
-  const iv = new Uint8Array(12); // 96-bit IV recommended for GCM
+  const iv = new Uint8Array(12);
   window.crypto.getRandomValues(iv);
   return iv;
 }
 
-// =========================
-// AES-256-GCM Encrypt
-// =========================
 export async function encryptMessage(sessionKey, plaintext) {
   const iv = generateRandomIv();
   const encoder = new TextEncoder();
@@ -51,9 +42,6 @@ export async function encryptMessage(sessionKey, plaintext) {
   };
 }
 
-// =========================
-// AES-256-GCM Decrypt
-// =========================
 export async function decryptMessage(sessionKey, ciphertextBase64, ivBase64) {
   const ivBuffer = base64ToBuffer(ivBase64);
   const ciphertextBuffer = base64ToBuffer(ciphertextBase64);

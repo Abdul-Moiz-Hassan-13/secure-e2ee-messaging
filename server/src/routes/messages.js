@@ -5,9 +5,6 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// =========================
-// POST /api/messages/send
-// =========================
 router.post("/send", async (req, res) => {
   try {
     const {
@@ -20,7 +17,6 @@ router.post("/send", async (req, res) => {
       clientTimestamp
     } = req.body;
 
-    // Log initial attempt
     logSecurity(
       "MESSAGE_SEND_ATTEMPT",
       `User ${senderId} attempting to send encrypted message`,
@@ -40,9 +36,6 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ error: "Missing sender/receiver ID" });
     }
 
-    // ---------------------------------------
-    // 🔥 REPLAY ATTACK CHECKS + LOGGING
-    // ---------------------------------------
     let state = await ReplayState.findOne({ userId: senderId });
 
     if (!state) {
@@ -53,7 +46,6 @@ router.post("/send", async (req, res) => {
       });
     }
 
-    // 1️⃣ Nonce reused
     if (state.usedNonces.includes(nonce)) {
       logSecurity(
         "REPLAY_ATTACK_NONCE",
@@ -65,7 +57,6 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (nonce reused)" });
     }
 
-    // 2️⃣ Sequence number replay/rollback
     if (Number(sequenceNumber) <= state.lastSequence) {
       logSecurity(
         "REPLAY_ATTACK_SEQUENCE",
@@ -77,10 +68,9 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (sequence rollback)" });
     }
 
-    // 3️⃣ Timestamp check
     const diff = Date.now() - Number(clientTimestamp);
 
-    if (Math.abs(diff) > 300000) { // > 5 min difference
+    if (Math.abs(diff) > 300000) {
       logSecurity(
         "REPLAY_ATTACK_TIMESTAMP",
         "Suspicious timestamp detected",
@@ -91,14 +81,10 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ error: "Timestamp replay detected" });
     }
 
-    // Update replay state
     state.usedNonces.push(nonce);
     state.lastSequence = Number(sequenceNumber);
     await state.save();
 
-    // ---------------------------------------
-    // 📩 STORE ENCRYPTED MESSAGE
-    // ---------------------------------------
     const saved = await Message.create({
       senderId,
       receiverId,
@@ -133,14 +119,10 @@ router.post("/send", async (req, res) => {
   }
 });
 
-// =========================
-// GET /api/messages/conversation/:userId/:peerId
-// =========================
 router.get('/conversation/:userId/:peerId', async (req, res) => {
   try {
     const { userId, peerId } = req.params;
 
-    // Log metadata access
     logSecurity(
       "METADATA_ACCESS",
       `User ${userId} requested message metadata with ${peerId}`,
