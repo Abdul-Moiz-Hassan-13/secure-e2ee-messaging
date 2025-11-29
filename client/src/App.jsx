@@ -7,21 +7,35 @@ import FileDownloadTest from "./pages/FileDownloadTest";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import ChatPage from "./pages/ChatPage";
+import ChatSelectPage from "./pages/SelectChatPage";
 
 function App() {
   const [sessionKey, setSessionKey] = useState(null);
 
-  useEffect(() => {
-    async function generateTestKey() {
-      const key = await crypto.subtle.generateKey(
-        { name: "AES-GCM", length: 256 },
-        true,
-        ["encrypt", "decrypt"]
-      );
-      setSessionKey(key);
+useEffect(() => {
+  async function loadSharedKey() {
+    const SHARED_KEY_B64 = "kfh1C+0qz0s6eQ+zG2d4wq3z+7pZp0w7u8ZbC2p0y4M=";
+
+    // Decode base64 → Uint8Array
+    const binary = atob(SHARED_KEY_B64);
+    const keyBytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      keyBytes[i] = binary.charCodeAt(i);
     }
 
-    generateTestKey();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM" },
+      false,
+      ["encrypt", "decrypt"]
+    );
+
+    setSessionKey(key);
+    }
+
+    loadSharedKey();
   }, []);
 
   if (!sessionKey) {
@@ -37,7 +51,8 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
         <Route path="/file-download" element={<FileDownloadTest sessionKey={sessionKey} />} />
-        <Route path="/chat/:peerId" element={<ChatPage />} />
+        <Route path="/chat-select" element={<ChatSelectPage />} />
+        <Route path="/chat/:peerId" element={<ChatPage sessionKey={sessionKey} />} />
       </Routes>
     </BrowserRouter>
   );

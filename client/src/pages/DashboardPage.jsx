@@ -25,7 +25,7 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <DashButton to="/file-test" color="purple" label="Test File Encryption" />
           <DashButton to="/file-download" color="indigo" label="Test File Download + Decrypt" />
-          <DashButton to="/chat" color="green" label="Open Chat (Messaging UI)" />
+          <DashButton to="/chat-select" color="green" label="Open Chat" />
         </div>
 
       </div>

@@ -1,73 +1,62 @@
-export async function importPeerEphemeralPublicKey(jwk) {
-  return await window.crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    {
-      name: "ECDH",
-      namedCurve: "P-256"
-    },
-    true,
-    []
-  );
+// client/src/crypto/sessionKey.js
+
+// Build a stable conversation ID for any pair of users
+// Order does not matter: convId("A", "B") === convId("B", "A")
+export function buildConversationId(userIdA, userIdB) {
+  const [a, b] = [String(userIdA), String(userIdB)].sort();
+  return `${a}_${b}`;
 }
 
-export async function deriveSharedSecret(myEphemeralPrivateKey, peerEphemeralPublicKey) {
-  const sharedSecret = await window.crypto.subtle.deriveBits(
-    {
-      name: "ECDH",
-      public: peerEphemeralPublicKey
-    },
-    myEphemeralPrivateKey,
-    256
-  );
-
-  return sharedSecret;
+// Small helpers for base64
+function bufToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
-export async function deriveSessionKey(sharedSecret, saltString = "", infoString = "chat-session") {
-  const hkdfBaseKey = await window.crypto.subtle.importKey(
+function base64ToBuf(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+// Store an AES-GCM CryptoKey for a conversation in localStorage
+export async function saveSessionKey(conversationId, cryptoKey) {
+  // Export raw key material
+  const raw = await window.crypto.subtle.exportKey("raw", cryptoKey);
+  const b64 = bufToBase64(raw);
+
+  const storageKey = `session_${conversationId}`;
+  localStorage.setItem(storageKey, b64);
+}
+
+// Load an AES-GCM CryptoKey for a conversation from localStorage
+export async function loadSessionKey(conversationId) {
+  const storageKey = `session_${conversationId}`;
+  const b64 = localStorage.getItem(storageKey);
+  if (!b64) return null;
+
+  const raw = base64ToBuf(b64);
+
+  const key = await window.crypto.subtle.importKey(
     "raw",
-    sharedSecret,
-    { name: "HKDF" },
-    false,
-    ["deriveKey"]
-  );
-
-  const saltBytes = new TextEncoder().encode(saltString);
-  const infoBytes = new TextEncoder().encode(infoString);
-
-  const sessionKey = await window.crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: saltBytes,
-      info: infoBytes
-    },
-    hkdfBaseKey,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
+    raw,
+    { name: "AES-GCM" },
     false,
     ["encrypt", "decrypt"]
   );
 
-  return sessionKey;
+  return key;
 }
 
-export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPublicJwk, saltString = "") {
-  const peerPublicKey = await importPeerEphemeralPublicKey(peerEphemeralPublicJwk);
-
-  const sharedSecret = await deriveSharedSecret(
-    myEphemeralPrivateKey,
-    peerPublicKey
-  );
-
-  const sessionKey = await deriveSessionKey(
-    sharedSecret,
-    saltString,
-    "chat-session"
-  );
-
-  return sessionKey;
+// Convenience: get session key for a (userId, peerId) pair
+export async function loadSessionKeyForUsers(userId, peerId) {
+  const convId = buildConversationId(userId, peerId);
+  return loadSessionKey(convId);
 }

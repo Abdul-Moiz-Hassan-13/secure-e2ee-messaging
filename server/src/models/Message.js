@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema({
-  senderId: { type: String, required: true },
+const messageSchema = new mongoose.Schema(
+  {senderId: { type: String, required: true },
   receiverId: { type: String, required: true },
 
   ciphertext: { type: String, required: true },
@@ -9,8 +9,8 @@ const messageSchema = new mongoose.Schema({
 
   nonce: { type: String, required: true },
   sequenceNumber: { type: Number, required: true },
-
-  timestamp: { type: Date, default: Date.now }
-});
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
 
 export default mongoose.model("Message", messageSchema);

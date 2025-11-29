@@ -91,7 +91,8 @@ router.post("/send", async (req, res) => {
       ciphertext,
       iv,
       nonce,
-      sequenceNumber
+      sequenceNumber,
+      timestamp: new Date()
     });
 
     logSecurity(

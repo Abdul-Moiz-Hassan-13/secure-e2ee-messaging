@@ -5,22 +5,21 @@ function generateNonce() {
   return crypto.randomUUID();
 }
 
-const sequenceMap = {};
+// NEW — replace sequenceMap with persistent local storage sequence
+function getNextSequence(senderId) {
+  const key = `seq_${senderId}`;
+  let last = Number(localStorage.getItem(key) || 0);
+  last += 1;
+  localStorage.setItem(key, last);
+  return last;
+}
 
 export async function sendEncryptedMessage(sessionKey, senderId, receiverId, plaintext) {
   const { ciphertext, iv } = await encryptMessage(sessionKey, plaintext);
 
-  const conversationId = [senderId, receiverId].sort().join("_");
-
-  if (!sequenceMap[conversationId]) {
-    sequenceMap[conversationId] = 1;
-  } else {
-    sequenceMap[conversationId] += 1;
-  }
-
-  const sequenceNumber = sequenceMap[conversationId];
-
   const nonce = generateNonce();
+  const sequenceNumber = getNextSequence(senderId);   // NEW
+  const clientTimestamp = Date.now();                 // NEW
 
   const response = await axiosClient.post("/messages/send", {
     senderId,
@@ -28,7 +27,8 @@ export async function sendEncryptedMessage(sessionKey, senderId, receiverId, pla
     ciphertext,
     iv,
     nonce,
-    sequenceNumber
+    sequenceNumber,
+    clientTimestamp         // NEW
   });
 
   return response.data;
