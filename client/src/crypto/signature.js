@@ -24,9 +24,7 @@ function bufferToBase64Url(buffer) {
 }
 
 function base64UrlToBuffer(b64url) {
-  // Convert URL-safe base64 back to standard
   let b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
-  // Pad with '=' to make length multiple of 4
   while (b64.length % 4 !== 0) {
     b64 += "=";
   }
@@ -39,14 +37,6 @@ function base64UrlToBuffer(b64url) {
   return bytes.buffer;
 }
 
-/**
- * Verify a signed payload using the sender's public identity key (JWK).
- *
- * @param {JsonWebKey} publicJwk - sender's ECDSA public key (P-256)
- * @param {Object} payload       - the original payload WITHOUT the signature field
- * @param {string} signatureB64  - base64url-encoded signature string
- * @returns {Promise<boolean>}   - true if valid, false otherwise
- */
 export async function verifyPayload(publicJwk, payload, signatureB64) {
   const encoded = new TextEncoder().encode(JSON.stringify(payload));
   const signatureBuf = base64UrlToBuffer(signatureB64);

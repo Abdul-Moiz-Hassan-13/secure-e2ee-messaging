@@ -7,10 +7,10 @@ export default function ChatWrapper() {
   useEffect(() => {
     const stored = localStorage.getItem("userId");
 
-    console.log("🔍 ChatWrapper: stored userId =", stored);   // ← ADD THIS
+    console.log("🔍 ChatWrapper: stored userId =", stored);
 
     if (!stored || stored === "null" || stored === "undefined") {
-      console.error("❌ Invalid userId in localStorage:", stored);
+      console.error("Invalid userId in localStorage:", stored);
       return;
     }
 

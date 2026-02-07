@@ -1,6 +1,6 @@
 import axiosClient from "./axiosClient";
 import { encryptMessage } from "../crypto/encryption";
-import { buildConversationId } from "../crypto/sessionKey";
+import { buildConversationId, getCurrentKeyVersion } from "../crypto/sessionKey";
 
 function generateNonce() {
   return crypto.randomUUID();
@@ -10,29 +10,44 @@ async function getNextSequence(senderId, receiverId) {
   const convId = buildConversationId(senderId, receiverId);
   const key = `seq_${convId}_${senderId}`;
   
-  // Start from a high number to avoid conflicts
   let current = Number(localStorage.getItem(key) || 1000);
   current += 1;
   
   localStorage.setItem(key, current.toString());
-  console.log(`🔢 Sequence for ${senderId}: ${current}`);
+  console.log(`Sequence for ${senderId}: ${current}`);
   return current;
 }
 
 export async function sendEncryptedMessage(sessionKey, senderId, receiverId, plaintext, clientTimestamp) {
   const { ciphertext, iv } = await encryptMessage(sessionKey, plaintext);
 
-  // FIXED: Get sequence number from server first
   const sequenceNumber = await getNextSequence(senderId, receiverId);
+  const nonce = crypto.randomUUID();
+  
+  // Get current key version for this conversation
+  const convId = buildConversationId(senderId, receiverId);
+  const keyVersion = await getCurrentKeyVersion(convId);
+
+  console.log("[SEND MESSAGE] Payload values:", {
+    senderId: senderId,
+    receiverId: receiverId,
+    ciphertext: ciphertext.substring(0, 20) + "...",
+    iv: iv.substring(0, 20) + "...",
+    nonce: nonce,
+    sequenceNumber: sequenceNumber,
+    clientTimestamp: clientTimestamp,
+    keyVersion: keyVersion
+  });
 
   const response = await axiosClient.post("/messages/send", {
     senderId,
     receiverId,
     ciphertext,
     iv,
-    nonce: crypto.randomUUID(),
+    nonce,
     sequenceNumber,
-    clientTimestamp
+    clientTimestamp,
+    keyVersion
   });
 
   return response.data;

@@ -8,11 +8,11 @@ router.post('/init', async (req, res) => {
   try {
     const { from, to, payload } = req.body;
 
-    console.log("🔑 [DEBUG] KEY_INIT RECEIVED:");
-    console.log("  From:", from, "To:", to);
-    console.log("  Ephemeral Key X (first 30 chars):", payload.alice_ephemeral_public?.x?.substring(0, 30));
-    console.log("  Ephemeral Key Y (first 30 chars):", payload.alice_ephemeral_public?.y?.substring(0, 30));
-    console.log("  Full Key Structure:", JSON.stringify(payload.alice_ephemeral_public).substring(0, 200) + "...");
+    console.log("[DEBUG] KEY_INIT RECEIVED:");
+    console.log("From:", from, "To:", to);
+    console.log("Ephemeral Key X (first 30 chars):", payload.alice_ephemeral_public?.x?.substring(0, 30));
+    console.log("Ephemeral Key Y (first 30 chars):", payload.alice_ephemeral_public?.y?.substring(0, 30));
+    console.log("Full Key Structure:", JSON.stringify(payload.alice_ephemeral_public).substring(0, 200) + "...");
 
     logSecurity(
       "KEY_EXCHANGE_ATTEMPT",
@@ -65,12 +65,11 @@ router.post('/init', async (req, res) => {
   }
 });
 
-// Get the most recent KEY_INIT from `from` -> `to`
 router.get('/init/:from/:to', async (req, res) => {
   try {
     const { from, to } = req.params;
 
-    console.log("🔑 [BACKEND DEBUG] Fetching KEY_INIT from:", from, "to:", to);
+    console.log("[BACKEND DEBUG] Fetching KEY_INIT from:", from, "to:", to);
 
     logSecurity(
       "KEY_EXCHANGE_FETCH_INIT",
@@ -82,20 +81,19 @@ router.get('/init/:from/:to', async (req, res) => {
 
     const record = await KeyExchange
       .findOne({ from, to, type: "KEY_INIT" })
-      .sort({ createdAt: -1 }); // assumes timestamps on schema
+      .sort({ createdAt: -1 });
 
     if (!record) {
       return res.status(404).json({ error: "No KEY_INIT found" });
     }
 
-    console.log("  Created at:", record.createdAt);
+    console.log("Created at:", record.createdAt);
 
-      // ADD THIS DEBUG LOGGING
-    console.log("🔑 [DEBUG] KEY_INIT SENDING:");
-    console.log("  From:", from, "To:", to);
-    console.log("  Ephemeral Key X (first 30 chars):", record.payload.alice_ephemeral_public?.x?.substring(0, 30));
-    console.log("  Ephemeral Key Y (first 30 chars):", record.payload.alice_ephemeral_public?.y?.substring(0, 30));
-    console.log("  Full Key Structure:", JSON.stringify(record.payload.alice_ephemeral_public).substring(0, 200) + "...");
+    console.log("[DEBUG] KEY_INIT SENDING:");
+    console.log("From:", from, "To:", to);
+    console.log("Ephemeral Key X (first 30 chars):", record.payload.alice_ephemeral_public?.x?.substring(0, 30));
+    console.log("Ephemeral Key Y (first 30 chars):", record.payload.alice_ephemeral_public?.y?.substring(0, 30));
+    console.log("Full Key Structure:", JSON.stringify(record.payload.alice_ephemeral_public).substring(0, 200) + "...");
 
     res.json(record);
 
@@ -113,7 +111,6 @@ router.get('/init/:from/:to', async (req, res) => {
   }
 });
 
-// Store a KEY_CONFIRM message (e.g., from Bob back to Alice)
 router.post('/confirm', async (req, res) => {
   try {
     const { from, to, payload } = req.body;
@@ -168,7 +165,6 @@ router.post('/confirm', async (req, res) => {
   }
 });
 
-// Get the most recent KEY_CONFIRM from `from` -> `to`
 router.get('/confirm/:from/:to', async (req, res) => {
   try {
     const { from, to } = req.params;
@@ -205,18 +201,16 @@ router.get('/confirm/:from/:to', async (req, res) => {
   }
 });
 
-// Add this test route to debug key transmission
 router.post('/debug-key-transmission', async (req, res) => {
   try {
     const { originalKey } = req.body;
     
-    console.log("🔑 [DEBUG TEST] ORIGINAL KEY RECEIVED:");
-    console.log("  X:", originalKey.x?.substring(0, 30));
-    console.log("  Y:", originalKey.y?.substring(0, 30));
-    console.log("  Full X length:", originalKey.x?.length);
-    console.log("  Full Y length:", originalKey.y?.length);
+    console.log("[DEBUG TEST] ORIGINAL KEY RECEIVED:");
+    console.log("X:", originalKey.x?.substring(0, 30));
+    console.log("Y:", originalKey.y?.substring(0, 30));
+    console.log("Full X length:", originalKey.x?.length);
+    console.log("Full Y length:", originalKey.y?.length);
 
-    // Store in database
     const stored = await KeyExchange.create({
       from: 'debug-from',
       to: 'debug-to', 
@@ -224,23 +218,21 @@ router.post('/debug-key-transmission', async (req, res) => {
       payload: { testKey: originalKey }
     });
 
-    console.log("✅ [DEBUG TEST] Key stored in database");
+    console.log("[DEBUG TEST] Key stored in database");
 
-    // Retrieve from database
     const retrieved = await KeyExchange.findById(stored._id);
     
-    console.log("🔑 [DEBUG TEST] KEY RETRIEVED FROM DATABASE:");
-    console.log("  X:", retrieved.payload.testKey.x?.substring(0, 30));
-    console.log("  Y:", retrieved.payload.testKey.y?.substring(0, 30));
-    console.log("  Full X length:", retrieved.payload.testKey.x?.length);
-    console.log("  Full Y length:", retrieved.payload.testKey.y?.length);
+    console.log("[DEBUG TEST] KEY RETRIEVED FROM DATABASE:");
+    console.log("X:", retrieved.payload.testKey.x?.substring(0, 30));
+    console.log("Y:", retrieved.payload.testKey.y?.substring(0, 30));
+    console.log("Full X length:", retrieved.payload.testKey.x?.length);
+    console.log("Full Y length:", retrieved.payload.testKey.y?.length);
 
-    // Check if they match
     const keysMatch = JSON.stringify(originalKey) === JSON.stringify(retrieved.payload.testKey);
-    console.log("✅ [DEBUG TEST] Keys match:", keysMatch);
+    console.log("[DEBUG TEST] Keys match:", keysMatch);
 
     if (!keysMatch) {
-      console.log("❌ [DEBUG TEST] KEYS DO NOT MATCH!");
+      console.log("[DEBUG TEST] KEYS DO NOT MATCH!");
       console.log("Original:", JSON.stringify(originalKey));
       console.log("Retrieved:", JSON.stringify(retrieved.payload.testKey));
     }
@@ -253,7 +245,7 @@ router.post('/debug-key-transmission', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ [DEBUG TEST] Error:", err);
+    console.error("[DEBUG TEST] Error:", err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -22,7 +22,6 @@ export function generateRandomIv() {
   return iv;
 }
 
-// FIXED encryptMessage
 export async function encryptMessage(sessionKey, plaintext) {
   const iv = generateRandomIv();
   const encoder = new TextEncoder();
@@ -38,12 +37,11 @@ export async function encryptMessage(sessionKey, plaintext) {
   );
 
   return {
-    iv: bufferToBase64(iv),  // FIXED: Use iv directly
+    iv: bufferToBase64(iv),
     ciphertext: bufferToBase64(ciphertextBuffer)
   };
 }
 
-// FIXED decryptMessage  
 export async function decryptMessage(sessionKey, ciphertextBase64, ivBase64) {
   const ivBuffer = base64ToBuffer(ivBase64);
   const ciphertextBuffer = base64ToBuffer(ciphertextBase64);
@@ -51,7 +49,7 @@ export async function decryptMessage(sessionKey, ciphertextBase64, ivBase64) {
   const plaintextBuffer = await window.crypto.subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: ivBuffer  // FIXED: Use ivBuffer directly
+      iv: ivBuffer
     },
     sessionKey,
     ciphertextBuffer

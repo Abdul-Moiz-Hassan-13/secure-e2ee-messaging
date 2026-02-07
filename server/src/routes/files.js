@@ -5,7 +5,6 @@ import { logSecurity } from "../utils/securityLogger.js";
 
 const router = express.Router();
 
-// ✅ REMOVED multer - we receive encrypted data as JSON
 router.post("/upload", async (req, res) => {
   try {
     const {
@@ -15,23 +14,20 @@ router.post("/upload", async (req, res) => {
       ciphertext,
       iv,
       nonce
-      // ❌ REMOVE sequenceNumber from destructuring
     } = req.body;
 
     logSecurity(
       "FILE_UPLOAD_ATTEMPT",
       `User ${senderId} uploading encrypted file`,
       senderId,
-      { receiverId, filename, nonce }, // ❌ Remove sequenceNumber from log
+      { receiverId, filename, nonce },
       req
     );
 
-    // ✅ Validate encrypted data exists
     if (!ciphertext) {
       return res.status(400).json({ error: "Missing encrypted file data" });
     }
 
-    // ✅ Only check nonce reuse, IGNORE sequence numbers for files
     let state = await ReplayState.findOne({ userId: senderId });
     if (!state) {
       state = await ReplayState.create({
@@ -45,11 +41,9 @@ router.post("/upload", async (req, res) => {
       return res.status(400).json({ error: "Replay attack detected (nonce reused)" });
     }
 
-    // ✅ DON'T update lastSequence for files!
     state.usedNonces.push(nonce);
     await state.save();
 
-    // ✅ Store ENCRYPTED data
     const saved = await FileRecord.create({
       senderId,
       receiverId,
@@ -57,7 +51,6 @@ router.post("/upload", async (req, res) => {
       encryptedFile: Buffer.from(ciphertext, 'base64'),
       iv,
       nonce,
-      // ❌ Remove sequenceNumber from database or set to 0
     });
 
     res.json({ message: "Encrypted file stored", id: saved._id });
@@ -68,7 +61,6 @@ router.post("/upload", async (req, res) => {
   }
 });
 
-// Keep your download endpoint as-is
 router.get("/download/:id", async (req, res) => {
   try {
     const fileId = req.params.id;
