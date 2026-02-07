@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 
 import RegisterPage from "./pages/RegisterPage";
 import FileTest from "./pages/FileTest";
-// import FileDownloadTest from "./pages/FileDownloadTest";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -51,7 +50,6 @@ useEffect(() => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/file-test" element={<FileTest sessionKey={sessionKey} />} />
-        {/* <Route path="/file-download" element={<FileDownloadTest sessionKey={sessionKey} />} /> */}
         <Route path="/chat-select" element={<ChatSelectPage />} />
         <Route 
         path="/chat/:peerId"

@@ -104,10 +104,20 @@ export default function RegisterPage() {
         publicKeyJwk: publicKeyJwk
       });
 
+      // Set token and userId for authenticated request
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("userId", res.data.userId);
+
       console.log(`Identity keys saved for user ${res.data.userId}`);
 
-      // Success
+      // Step 5: Upload prekeys to server
       setKeyGenerationStep(5);
+      setMessage("Uploading session prekeys...");
+
+      await generateAndUploadPreKeys(res.data.userId);
+
+      // Success
+      setKeyGenerationStep(6);
       setIsSuccess(true);
       setMessage("✓ Account created successfully! Redirecting...");
       

@@ -14,8 +14,7 @@ router.post("/send", async (req, res) => {
       iv,
       nonce,
       sequenceNumber,
-      clientTimestamp,
-      keyVersion
+      clientTimestamp
     } = req.body;
 
     console.log("[MESSAGE SEND] Received payload:", {
@@ -126,7 +125,6 @@ router.post("/send", async (req, res) => {
       iv,
       nonce,
       sequenceNumber,
-      keyVersion: keyVersion || 1,
       timestamp: new Date()
     });
 

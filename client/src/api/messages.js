@@ -1,6 +1,6 @@
 import axiosClient from "./axiosClient";
 import { encryptMessage } from "../crypto/encryption";
-import { buildConversationId, getCurrentKeyVersion } from "../crypto/sessionKey";
+import { buildConversationId } from "../crypto/sessionKey";
 
 function generateNonce() {
   return crypto.randomUUID();
@@ -23,10 +23,6 @@ export async function sendEncryptedMessage(sessionKey, senderId, receiverId, pla
 
   const sequenceNumber = await getNextSequence(senderId, receiverId);
   const nonce = crypto.randomUUID();
-  
-  // Get current key version for this conversation
-  const convId = buildConversationId(senderId, receiverId);
-  const keyVersion = await getCurrentKeyVersion(convId);
 
   console.log("[SEND MESSAGE] Payload values:", {
     senderId: senderId,
@@ -36,7 +32,7 @@ export async function sendEncryptedMessage(sessionKey, senderId, receiverId, pla
     nonce: nonce,
     sequenceNumber: sequenceNumber,
     clientTimestamp: clientTimestamp,
-    keyVersion: keyVersion
+    clientTimestampType: typeof clientTimestamp
   });
 
   const response = await axiosClient.post("/messages/send", {
@@ -46,8 +42,7 @@ export async function sendEncryptedMessage(sessionKey, senderId, receiverId, pla
     iv,
     nonce,
     sequenceNumber,
-    clientTimestamp,
-    keyVersion
+    clientTimestamp
   });
 
   return response.data;

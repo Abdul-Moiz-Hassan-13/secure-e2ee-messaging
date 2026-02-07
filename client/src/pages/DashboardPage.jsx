@@ -1,11 +1,13 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axiosClient from "../api/axiosClient";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [sessionTime, setSessionTime] = useState("00:00");
   const [isLoading, setIsLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -37,9 +39,30 @@ export default function DashboardPage() {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("username");
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = async () => {
+    const userId = localStorage.getItem("userId");
+    const currentPeer = localStorage.getItem("currentPeer");
+
+    try {
+      // Notify server to remove active session
+      // Also logout the peer if user is currently in a chat
+      await axiosClient.post("/auth/logout", { 
+        userId,
+        peerId: currentPeer || undefined
+      });
+    } catch (error) {
+      console.error("Server logout error:", error);
+      // Continue with client-side cleanup even if server fails
+    }
+
+    // Clear ALL localStorage
+    localStorage.clear();
+
+    console.log("All localStorage data cleared. Logging out...");
+    setShowLogoutConfirm(false);
     navigate("/login");
   };
 
@@ -197,7 +220,40 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-gray-900/95 border border-red-800/30 rounded-3xl p-8 max-w-md shadow-2xl">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-900/20 mb-6 mx-auto">
+              <span className="text-red-400 text-2xl">⚠️</span>
+            </div>
+            
+            <h2 className="text-2xl font-bold text-white mb-3 text-center">End All Chat Sessions?</h2>
+            
+            <p className="text-gray-400 mb-6 text-center">
+              Logging out will permanently erase all encryption keys for perfect secrecy. 
+              <span className="block mt-2 text-red-400 font-semibold">All conversations will be lost.</span>
+              Any users currently chatting with you will be disconnected.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={confirmLogout}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all duration-300"
+              >
+                🚪 Logout & Clear All Sessions
+              </button>
+              
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold rounded-xl transition-all duration-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}    </div>
   );
 }
 

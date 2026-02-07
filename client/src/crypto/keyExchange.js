@@ -308,36 +308,62 @@ export async function finalizeInitiatorSessionKey(myUserId, peerUserId) {
 
 export async function ensureSessionKeyForUsers(myUserId, peerUserId) {
   console.log("ensureSessionKeyForUsers CALLED WITH:", {
-    myUserId, peerUserId
+    myUserId, peerUserId,
+    type_myUserId: typeof myUserId,
+    type_peerUserId: typeof peerUserId
   });
 
-  const { buildConversationId, loadSessionKey } = await import("./sessionKey.js");
-  const convId = buildConversationId(myUserId, peerUserId);
-  
-  // Check if we already have a session key
-  let sessionKey = await loadSessionKey(convId);
-  
-  if (sessionKey) {
-    console.log("✓ Using existing session key (version tracked)");
-    return sessionKey;
+  const existing = await loadSessionKeyForUsers(myUserId, peerUserId);
+  if (existing) {
+    console.log("✓ Existing sessionKey found. Using stored key.");
+    return existing;
   }
 
-  // Need to establish new session key via ephemeral key exchange
-  console.log("No session key found - initiating key exchange");
-  
-  // Deterministic role assignment: user with smaller ID initiates
-  const [smallerId, largerId] = [String(myUserId), String(peerUserId)].sort();
-  const isInitiator = String(myUserId) === smallerId;
-  
-  if (isInitiator) {
-    console.log(`I am INITIATOR (my ID: ${myUserId}, peer ID: ${peerUserId})`);
+  const myIdStr = String(myUserId);
+  const peerIdStr = String(peerUserId);
+
+  console.log("Converted IDs:", { myIdStr, peerIdStr });
+  console.log(
+    "Comparing IDs to determine initiator:",
+    `"${myIdStr}" < "${peerIdStr}" = ${myIdStr < peerIdStr}`
+  );
+
+  const amInitiator = myIdStr < peerIdStr;
+
+  if (amInitiator) {
+    console.log("Am I initiator? YES (sending KEY_INIT)");
+    
     await sendKeyInit(myUserId, peerUserId);
-    const result = await finalizeInitiatorSessionKey(myUserId, peerUserId);
-    return result.sessionKey;
+    console.log("Initiator: sending KEY_INIT");
+
+    try {
+      console.log("Initiator: waiting for KEY_CONFIRM");
+      const { sessionKey } = await finalizeInitiatorSessionKey(myUserId, peerUserId);
+
+      const keyB64 = await keyToBase64(sessionKey);
+      console.log("[NEW KEY - INITIATOR]", keyB64.substring(0, 50) + "...");
+
+      return sessionKey;
+    } catch (err) {
+      console.warn("[KeyExchange] Initiator could not finalize session key. Peer may not have responded.", err);
+      throw err;
+    }
+
   } else {
-    console.log(`I am RESPONDER (my ID: ${myUserId}, peer ID: ${peerUserId})`);
-    const result = await respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId);
-    return result.sessionKey;
+    console.log("Am I initiator? NO (waiting for KEY_INIT)");
+
+    try {
+      console.log("Responder: waiting for KEY_INIT then generating KEY_CONFIRM");
+      const { sessionKey } = await respondToKeyInitAndDeriveSessionKey(myUserId, peerUserId);
+
+      const keyB64 = await keyToBase64(sessionKey);
+      console.log("[NEW KEY - RESPONDER]", keyB64.substring(0, 50) + "...");
+
+      return sessionKey;
+    } catch (err) {
+      console.warn("[KeyExchange] Responder could not derive session key. KEY_INIT may not be available yet.", err);
+      throw err;
+    }
   }
 }
 

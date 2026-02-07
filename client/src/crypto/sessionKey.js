@@ -76,8 +76,7 @@ export async function generateSessionKey(myEphemeralPrivateKey, peerEphemeralPub
 
   const exportedKey = await window.crypto.subtle.exportKey("raw", sessionKey);
   const keyB64 = bufToBase64(exportedKey);
-  console.log("[SESSION KEY] Generated key (first 20 chars):", keyB64.substring(0, 20));
-  console.log("[SESSION KEY] Salt used:", saltString);
+  console.log("Generated session key:", keyB64);
 
   return sessionKey;
 }
@@ -88,18 +87,6 @@ export async function saveSessionKey(conversationId, cryptoKey) {
 
   const storageKey = `session_${conversationId}`;
   localStorage.setItem(storageKey, b64);
-  
-  // Get current version (defaults to 0 if not set)
-  let currentVersion = Number(localStorage.getItem(`key_version_${conversationId}`) || 0);
-  const newVersion = currentVersion + 1;
-  
-  // Save to history before updating current
-  await saveKeyToHistory(conversationId, cryptoKey, newVersion);
-  
-  // Update current version
-  await saveKeyVersion(conversationId, newVersion);
-  
-  console.log(`[KEY VERSIONING] Ephemeral key saved as version ${newVersion}`);
 }
 
 export async function loadSessionKey(conversationId) {
@@ -125,73 +112,6 @@ export async function loadSessionKeyForUsers(userId, peerId) {
   return loadSessionKey(convId);
 }
 
-export async function getCurrentKeyVersion(convId) {
-  const versionKey = `key_version_${convId}`;
-  return Number(localStorage.getItem(versionKey) || 1);
-}
-
-export async function getKeyHistory(convId) {
-  const historyKey = `key_history_${convId}`;
-  const history = localStorage.getItem(historyKey);
-  return history ? JSON.parse(history) : [];
-}
-
-export async function saveKeyVersion(convId, version) {
-  const versionKey = `key_version_${convId}`;
-  localStorage.setItem(versionKey, version.toString());
-}
-
-export async function saveKeyToHistory(convId, sessionKey, version) {
-  const raw = await window.crypto.subtle.exportKey("raw", sessionKey);
-  const b64 = bufToBase64(raw);
-  
-  const historyKey = `key_history_${convId}`;
-  let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
-  
-  // Add new version
-  history.push({
-    version: version,
-    key: b64,
-    timestamp: Date.now()
-  });
-  
-  // Keep last 10 versions for fallback
-  if (history.length > 10) {
-    history = history.slice(-10);
-  }
-  
-  localStorage.setItem(historyKey, JSON.stringify(history));
-}
-
-export async function loadSessionKeyByVersion(convId, version) {
-  const currentVer = await getCurrentKeyVersion(convId);
-  
-  // If requesting current version, load from current storage
-  if (version === currentVer) {
-    return loadSessionKey(convId);
-  }
-  
-  // Try to load from history
-  const history = await getKeyHistory(convId);
-  const entry = history.find(e => e.version === version);
-  
-  if (entry) {
-    const raw = base64ToBuf(entry.key);
-    const key = await window.crypto.subtle.importKey(
-      "raw",
-      raw,
-      { name: "AES-GCM" },
-      true,
-      ["encrypt", "decrypt"]
-    );
-    console.log(`[KEY VERSIONING] Loaded key version ${version} from history`);
-    return key;
-  }
-  
-  console.log(`[KEY VERSIONING] Key version ${version} not found (current: ${currentVer})`);
-  return null;
-}
-
 // Derive a PERSISTENT key from identity keys for backward compatibility
 // Use this as fallback for old messages when ephemeral session key fails
 export async function derivePersistentSessionKey(myUserId, peerUserId, myIdentityPublicJwk, peerIdentityPublicJwk) {
@@ -214,38 +134,43 @@ export async function derivePersistentSessionKey(myUserId, peerUserId, myIdentit
   }
 
   try {
-    console.log("[Persistent Key] Deriving new persistent session key from identity keys");
-    
-    // Sort user IDs for deterministic ordering
+    // Import both identity public keys
+    const keyA = await window.crypto.subtle.importKey(
+      "jwk",
+      myIdentityPublicJwk,
+      {
+        name: "ECDH",
+        namedCurve: "P-256"
+      },
+      true,
+      []
+    );
+
+    const keyB = await window.crypto.subtle.importKey(
+      "jwk",
+      peerIdentityPublicJwk,
+      {
+        name: "ECDH",
+        namedCurve: "P-256"
+      },
+      true,
+      []
+    );
+
+    // Deterministic ordering for consistent key on both sides
     const [firstId, secondId] = [String(myUserId), String(peerUserId)].sort();
     const [firstKey, secondKey] = 
-      firstId === String(myUserId) 
-        ? [myIdentityPublicJwk, peerIdentityPublicJwk] 
-        : [peerIdentityPublicJwk, myIdentityPublicJwk];
+      firstId === String(myUserId) ? [keyA, keyB] : [keyB, keyA];
 
-    // Convert JWK public keys to raw bytes
-    const key1Crypto = await window.crypto.subtle.importKey(
-      "jwk",
-      firstKey,
-      { name: "ECDSA", namedCurve: "P-256" },
-      true,
-      []
-    );
-    const key2Crypto = await window.crypto.subtle.importKey(
-      "jwk",
-      secondKey,
-      { name: "ECDSA", namedCurve: "P-256" },
-      true,
-      []
-    );
-    
-    const key1raw = await window.crypto.subtle.exportKey("raw", key1Crypto);
-    const key2raw = await window.crypto.subtle.exportKey("raw", key2Crypto);
+    // Derive shared secret (this won't work since both are public keys)
+    // Instead, use deterministic HKDF from sorted public key material
+    const keyAraw = await window.crypto.subtle.exportKey("raw", keyA);
+    const keyBraw = await window.crypto.subtle.exportKey("raw", keyB);
     
     // Combine in sorted order for determinism
     const combined = new Uint8Array([
-      ...new Uint8Array(key1raw),
-      ...new Uint8Array(key2raw)
+      ...new Uint8Array(firstId === String(myUserId) ? keyAraw : keyBraw),
+      ...new Uint8Array(firstId === String(myUserId) ? keyBraw : keyAraw)
     ]);
 
     const hkdfKey = await window.crypto.subtle.importKey(
@@ -285,6 +210,6 @@ export async function derivePersistentSessionKey(myUserId, peerUserId, myIdentit
 
   } catch (err) {
     console.error("Failed to derive persistent session key:", err);
-    throw err;
+    return null;
   }
 }

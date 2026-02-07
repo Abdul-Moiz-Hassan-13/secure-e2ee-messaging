@@ -43,6 +43,9 @@ export default function ChatPage({ currentUserId }) {
   };
 
   useEffect(() => {
+    // Track current peer in localStorage for logout coordination
+    localStorage.setItem("currentPeer", peerId);
+
     async function fetchPeer() {
       try {
         const res = await axiosClient.get(`/users/${peerId}`);
@@ -137,6 +140,32 @@ export default function ChatPage({ currentUserId }) {
 
     return () => clearInterval(interval);
   }, [sessionKey, userId, peerId, connectionStatus]);
+
+  useEffect(() => {
+    if (!peerId) return;
+
+    const peerCheckInterval = setInterval(async () => {
+      try {
+        const res = await axiosClient.get(`/auth/session/${peerId}`);
+        if (!res.data.active) {
+          console.log("Peer has logged out - forcing logout");
+          // Peer logged out, so logout current user too
+          localStorage.clear();
+          window.location.href = "/login";
+        }
+      } catch (error) {
+        console.error("Error checking peer session:", error);
+        // If we can't verify peer session, assume they logged out
+        if (error.response?.status === 404) {
+          console.log("Peer session not found - forcing logout");
+          localStorage.clear();
+          window.location.href = "/login";
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(peerCheckInterval);
+  }, [peerId]);
 
   async function handleSend() {
     if (!input.trim() || !sessionKey) return;
